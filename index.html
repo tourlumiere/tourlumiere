@@ -6,6 +6,7 @@
 <title>Tour Lumière Cybernétique — prototype en données réelles</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.6.0/maplibre-gl.min.css">
 <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{--ink:#0d0c0a;--ink2:#171512;--line:#2e2a24;--paper:#efe6d2;--dim:#8c8577;--ochre:#e2a03f;--red:#d4553f;--blue:#5b7cff;--mono:'IBM Plex Mono',ui-monospace,monospace;--serif:'EB Garamond',Garamond,serif}
@@ -111,6 +112,14 @@ body.panel-closed #minimap{right:16px}
 .mmbar{display:flex;gap:2px;padding:3px;align-items:center}.mmbar button{background:none;border:1px solid var(--line);color:var(--dim);font:inherit;font-size:10px;padding:2px 6px;cursor:pointer}.mmbar button.on{color:var(--paper);border-color:var(--ochre)}
 .mmbar span{flex:1;font-size:10px;color:var(--dim);padding-left:4px}#mm-cap{font-size:10px;color:#cbbf9f;padding:2px 6px 4px}
 #minimap .leaflet-control-attribution{font-size:8px;background:rgba(0,0,0,.5);color:#aaa}#minimap .leaflet-control-attribution a{color:#ccc}
+#m3d{position:fixed;left:16px;top:16px;right:420px;bottom:16px;z-index:12;background:#0d0c0a;border:1px solid var(--line);display:flex;flex-direction:column}
+body.panel-closed #m3d{right:16px}
+.m3dbar{display:flex;gap:8px;align-items:center;padding:6px 8px;font-size:11px}.m3dbar span{flex:1;font-family:var(--serif);font-size:16px}
+.m3dbar button{background:none;border:1px solid var(--line);color:var(--paper);font:inherit;font-size:11px;padding:3px 8px;cursor:pointer}.m3dbar button.on{border-color:var(--ochre);color:var(--ochre)}
+#m3d-map{flex:1;position:relative}#m3d-info{font-size:11px;padding:6px 8px;color:#cbbf9f}#m3d-info b{color:var(--paper);font-weight:500}
+#m3d-tip{position:absolute;pointer-events:none;background:rgba(13,12,10,.9);border:1px solid var(--line);padding:3px 6px;font-size:11px;z-index:13}
+#m3d-map{}#m3d .maplibregl-ctrl-attrib{font-size:9px}
+@media (max-width:900px){#m3d{right:8px;left:8px}}
 @media (max-width:900px){#minimap{right:12px;bottom:auto;top:12px;width:200px}#mm{height:140px}}
 @media (max-width:900px){#panel{width:100%;top:45%}#panel-toggle{right:12px;top:auto;bottom:56%}#hud{right:16px}#hud h1{font-size:20px}}
 </style>
@@ -273,7 +282,8 @@ body.panel-closed #minimap{right:16px}
     <div class="rowi"><button class="btn" id="btn-smoke">déclencher les bombes fumigènes</button><button class="btn" id="btn-reassign">réaffecter les groupes</button></div>
   </section>
 </aside>
-<div id="minimap"><div class="mmbar"><span>site de la T.L.C.</span><button data-l="ign">1965–80</button><button data-l="plan">plan</button><button data-l="sat">satellite</button><button id="mm-min">–</button></div><div id="mm"></div><div id="mm-cap"></div></div>
+<div id="minimap"><div class="mmbar"><span>site de la T.L.C.</span><button data-l="ign">1965–80</button><button data-l="plan">plan</button><button data-l="sat">satellite</button><button id="mm-3d" title="maquette 3D parmi les bâtiments réels">3D</button><button id="mm-min">–</button></div><div id="mm"></div><div id="mm-cap"></div></div>
+<div id="m3d" hidden><div class="m3dbar"><span>Maquette 3D · la T.L.C. parmi les bâtiments actuels</span><label><input type="checkbox" id="m3d-follow" checked> suivre la vue</label><button id="m3d-sat">satellite</button><button id="m3d-close">fermer ×</button></div><div id="m3d-map"></div><div id="m3d-info"></div><div id="m3d-tip" hidden></div></div>
 <div id="lightbox" hidden><img id="lb-img" alt=""><div id="lb-cap"></div></div>
 
 <div id="simnote" hidden><button id="simnote-close">×</button>This copy cannot reach the network, so every line runs in simulation by Schöffer’s own 1973 method. The live version runs on the public site or from the downloaded file.</div>
@@ -287,6 +297,7 @@ body.panel-closed #minimap{right:16px}
 </div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.6.0/maplibre-gl.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
@@ -298,6 +309,7 @@ body.panel-closed #minimap{right:16px}
 <script src="js/data.js"></script>
 <script src="js/program.js"></script>
 <script src="js/render.js"></script>
+<script src="js/map3d.js"></script>
 <script src="js/ui.js"></script>
 </body>
 </html>

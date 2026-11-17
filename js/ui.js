@@ -358,6 +358,11 @@
     $('#mm-cap').textContent = `regard vers ${Math.round(((bearing * 180 / Math.PI) % 360 + 360) % 360)}° · ${Math.round(flat)} m du pied`;
   }
   try { initMap(); } catch (e) { $('#minimap').hidden = true; }
+  $('#mm-3d').addEventListener('click', () => MAP3D.open(tower));
+  $('#m3d-close').addEventListener('click', () => MAP3D.close());
+  $('#m3d-sat').addEventListener('click', () => MAP3D.toggleSat());
+  $('#m3d-follow').addEventListener('change', e => MAP3D.setFollow(e.target.checked));
+  setInterval(() => MAP3D.sync(), 120);
   setInterval(updateMap, 150);
 
   // ---------------- teletype
