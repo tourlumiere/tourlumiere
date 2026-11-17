@@ -25,12 +25,13 @@ function makeView(sharedCam, opts) {
     // ----- sky dome
     const skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false,
-      uniforms: { uTop: { value: new THREE.Color(0x02030a) }, uHor: { value: new THREE.Color(0x101624) }, uSunDir: { value: new THREE.Vector3(0, -1, 0) }, uSunCol: { value: new THREE.Color(0xffc080) }, uFlash: { value: 0 } },
+      uniforms: { uTop: { value: new THREE.Color(0x02030a) }, uHor: { value: new THREE.Color(0x101624) }, uSunDir: { value: new THREE.Vector3(0, -1, 0) }, uSunCol: { value: new THREE.Color(0xffc080) }, uFlash: { value: 0 }, uTowerDir: { value: new THREE.Vector3(0, 0, -1) } },
       vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-      fragmentShader: `uniform vec3 uTop,uHor,uSunDir,uSunCol; uniform float uFlash; varying vec3 vP;
+      fragmentShader: `uniform vec3 uTop,uHor,uSunDir,uSunCol,uTowerDir; uniform float uFlash; varying vec3 vP;
         void main(){ float h = clamp(vP.y,0.,1.); vec3 c = mix(uHor,uTop,pow(h,0.55));
           float s = max(dot(normalize(vP),normalize(uSunDir)),0.); c += uSunCol*pow(s,24.)*0.6 + uSunCol*pow(s,3.)*0.08;
-          c += vec3(0.9,0.92,1.)*uFlash*(1.-h)*0.25; gl_FragColor = vec4(c,1.); }`
+          vec2 a = normalize(vP.xz + 1e-5), b = normalize(uTowerDir.xz + 1e-5); float toward = pow(max(dot(a,b),0.),14.); float low = exp(-h*9.);
+          c += vec3(0.9,0.92,1.)*uFlash*toward*low*0.22; gl_FragColor = vec4(c,1.); }`
     });
     sky = new THREE.Mesh(new THREE.SphereGeometry(20000, 32, 16), skyMat); scene.add(sky);
     // stars
@@ -247,7 +248,9 @@ function makeView(sharedCam, opts) {
     }
     lightIAttr.needsUpdate = true; lightColAttr.needsUpdate = true;
     lightPts.material.uniforms.uDay.value = dl; lightPts.material.uniforms.uVanish.value = OUT.vanish;
-    sky.material.uniforms.uFlash.value = Math.min(1, flashE) * (1 - dl);
+    // flashes light the haze around the tower only: direction from the viewer to the tower, fading with distance
+    sky.material.uniforms.uTowerDir.value.set(-camera.position.x, 0, -camera.position.z);
+    sky.material.uniforms.uFlash.value = Math.min(1, flashE) * (1 - dl) * Math.min(1, 900 / Math.max(300, Math.hypot(camera.position.x, camera.position.z)));
     bandLights.forEach((L, b) => { const B = band[b]; const n = Math.max(1, B[3]); L.color.setRGB(B[0] / n, B[1] / n, B[2] / n); L.intensity = Math.min(3, B[3] / 40) * (1 - dl * 0.8) * (1 - OUT.vanish); });
     beaconPts.material.opacity = (Math.floor(nowp / 700) % 2 ? 1 : 0.15);
 
