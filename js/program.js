@@ -194,7 +194,7 @@ function makeProg(params) {
     let on = f.f > 0; f.passed = on; f.u = null;
     if (on) { f.u = rand(); on = f.u < R.seuil; }                  // Annexe 1 validation draw
     if (g.type === 4 && S.regime === 'bleu') on = false;            // Annexe 3: shutter projectors off when désexcité
-    f.X = on ? 1 : 0; f.t0 = t; f.seuil = R.seuil; S.lastEval = f;
+    f.X = on ? 1 : 0; f.t0 = t; f.seuil = R.seuil; f.reg = S.regime; S.lastEval = f;
     const mean = on ? MEAN_ON[g.type] * CR.onScale : CR.meanOff;
     const draw = CR.law === 'uniforme' ? mean * 2 * rand() : CR.law === 'exponentielle' ? expo(mean) : gamma(2.5, mean);
     f.Y = clamp(f.lively ? mean * (0.3 + 0.7 * rand()) : draw, 2, 180);

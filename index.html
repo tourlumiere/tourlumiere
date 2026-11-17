@@ -113,6 +113,12 @@ body.panel-closed #minimap{right:16px}
 .mmbar span{flex:1 1 100%;font-size:10px;color:var(--dim);padding-left:4px}
 #mm-3d{color:var(--ochre)!important;border-color:var(--ochre)!important;font-weight:500}#mm-cap{font-size:10px;color:#cbbf9f;padding:2px 6px 4px}
 #minimap .leaflet-control-attribution{font-size:8px;background:rgba(0,0,0,.5);color:#aaa}#minimap .leaflet-control-attribution a{color:#ccc}
+#pick{position:fixed;left:16px;top:170px;width:370px;max-height:calc(100vh - 260px);overflow:auto;z-index:6;background:rgba(13,12,10,.93);border:1px solid var(--ochre);font-size:11px;line-height:1.45}
+.pk-bar{display:flex;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#0d0c0a}.pk-bar span{flex:1;font-family:var(--serif);font-size:16px}
+.pk-bar button{background:none;border:0;color:var(--paper);font-size:16px;cursor:pointer}
+#pick-body{padding:8px 10px 10px}#pick-body h4{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ochre);margin:10px 0 3px;font-weight:500}
+.pk-h{font-family:var(--serif);font-size:15px;color:var(--paper)}.pk-s{color:var(--dim)}.pk-state{margin-top:5px;color:var(--dim)}.pk-state.on{color:#8fd18b}
+.pk-why{color:#d9c7a0}.pk-t{width:100%;border-collapse:collapse;margin:3px 0}.pk-t td,.pk-t th{padding:1px 3px;text-align:left;font-weight:400;color:#cbbf9f;border-bottom:1px solid #221f1a}.pk-t th{color:var(--dim)}.pk-t .badge{position:static;font-size:8px;padding:0 3px}
 #m3d{position:fixed;left:16px;top:16px;right:420px;bottom:16px;z-index:12;background:#0d0c0a;border:1px solid var(--line);display:flex;flex-direction:column}
 body.panel-closed #m3d{right:16px}
 .m3dbar{display:flex;gap:8px;align-items:center;padding:6px 8px;font-size:11px}.m3dbar span{flex:1;font-family:var(--serif);font-size:16px}
@@ -142,7 +148,7 @@ body.panel-closed #m3d{right:16px}
     <span class="k">organes allumés</span><b id="hud-lit">0</b><span class="k">/ <span id="count-total"></span> paramètres d’action ·</span><span class="k">axes tournants</span><b id="hud-spin">0</b><span class="k">/ 114</span></div>
   <div class="row"><span id="hud-state"></span></div>
 </div>
-<div id="legend"><span><i style="background:#3a6bff"></i>bleu</span><span><i style="background:#ff1f1a"></i>rouge</span><span><i style="background:#ffdb2e"></i>jaune</span><span><i style="background:#ff8014"></i>orange</span><span><i style="background:#9e38ff"></i>violet</span><span><i style="background:#fff7ea"></i>blanc</span><span>· glisser : tourner · molette : distance · maj+glisser : hauteur</span></div>
+<div id="legend"><span><i style="background:#3a6bff"></i>bleu</span><span><i style="background:#ff1f1a"></i>rouge</span><span><i style="background:#ffdb2e"></i>jaune</span><span><i style="background:#ff8014"></i>orange</span><span><i style="background:#9e38ff"></i>violet</span><span><i style="background:#fff7ea"></i>blanc</span><span>· cliquer une lumière : à quoi répond-elle · glisser : tourner · molette : distance · maj+glisser : hauteur</span></div>
 <div id="views"><button data-v="paris">depuis Paris</button><button data-v="pied">au pied</button><button data-v="plateforme">plate-forme 272 m</button><button data-v="lointain">de loin</button><button data-v="facade">façade 2</button><button data-v="plan">plan</button><button id="autorot">rotation auto</button></div>
 
 <button id="panel-toggle" title="panneau">☰</button>
@@ -291,6 +297,7 @@ body.panel-closed #m3d{right:16px}
 </aside>
 <div id="minimap"><div class="mmbar"><span>site de la T.L.C.</span><button data-l="ign">1965–80</button><button data-l="plan">plan</button><button data-l="sat">satellite</button><button id="mm-3d" title="maquette 3D parmi les bâtiments réels">3D</button><button id="mm-big" title="agrandir la maquette 3D">⤢</button><button id="mm-min">–</button></div><div id="mm"></div><div id="mm3d-slot"></div><div id="mm-cap"></div></div>
 <div id="m3d" hidden><div class="m3dbar"><span>Maquette 3D · la T.L.C. parmi les bâtiments actuels</span><label><input type="checkbox" id="m3d-follow" checked> suivre la vue</label><button id="m3d-sat">satellite</button><button id="m3d-shrink">réduire</button><button id="m3d-close">fermer ×</button></div><div id="m3d-slot"><div id="m3d-map"></div></div><div id="m3d-info"></div><div id="m3d-tip" hidden></div></div>
+<div id="pick" hidden><div class="pk-bar"><span>Cette lumière répond à…</span><button id="pick-close">×</button></div><div id="pick-body"></div></div>
 <div id="lightbox" hidden><img id="lb-img" alt=""><div id="lb-cap"></div></div>
 
 <div id="simnote" hidden><button id="simnote-close">×</button>This copy cannot reach the network, so every line runs in simulation by Schöffer’s own 1973 method. The live version runs on the public site or from the downloaded file.</div>
@@ -312,11 +319,11 @@ body.panel-closed #m3d{right:16px}
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-<script src="js/tower.js?v=1794948107"></script>
-<script src="js/data.js?v=1794948107"></script>
-<script src="js/program.js?v=1794948107"></script>
-<script src="js/render.js?v=1794948107"></script>
-<script src="js/map3d.js?v=1794948107"></script>
-<script src="js/ui.js?v=1794948107"></script>
+<script src="js/tower.js?v=1794952866"></script>
+<script src="js/data.js?v=1794952866"></script>
+<script src="js/program.js?v=1794952866"></script>
+<script src="js/render.js?v=1794952866"></script>
+<script src="js/map3d.js?v=1794952866"></script>
+<script src="js/ui.js?v=1794952866"></script>
 </body>
 </html>

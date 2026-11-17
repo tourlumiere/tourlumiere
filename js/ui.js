@@ -65,10 +65,10 @@
   }
   function loop() {
     advance(); const nowp = performance.now();
-    const OUT = PROG.sample(simT);
+    const OUT = PROG.sample(simT); lastOUT = OUT;
     if (viewOK) VIEW.frame(OUT, DATA.ctx, S, simT);
     lastLitA = litCount(OUT);
-    if (PB && VB) { const OB = PB.sample(simT); VB.frame(OB, DATA.ctx, PB.S, simT); lastLitB = litCount(OB); }
+    if (PB && VB) { const OB = PB.sample(simT); lastOUTB = OB; VB.frame(OB, DATA.ctx, PB.S, simT); lastLitB = litCount(OB); }
     if (overlayOn) placeOverlay();
     if (nowp - lastUI > 500) { lastUI = nowp; updateUI(OUT); }
     teletypeStep();
@@ -185,6 +185,67 @@
     $('#sch-env-x').textContent = `τ ${S.tau.toFixed(2)}`; $('#sch-reg').textContent = `D = ${S.D}`;
   }
 
+
+  // ---------------- what does this light answer to? (click an organ)
+  let lastOUT = null, lastOUTB = null, picked = null;
+  const COLFR = ['bleu', 'rouge', 'jaune', 'orange', 'violet', 'blanc'];
+  const DIRFR = ['est', 'sud', 'ouest', 'nord'];
+  function choose(id, which) {
+    if (id < 0) { picked = null; $('#pick').hidden = true; VIEW.select(-1); if (VB) VB.select(-1); return; }
+    picked = { id, which }; VIEW.select(which === 'A' ? id : -1); if (VB) VB.select(which === 'B' ? id : -1);
+    $('#pick').hidden = false; explain();
+  }
+  if (viewOK) VIEW.setOnPick(id => choose(id, 'A'));
+  $('#pick-close').addEventListener('click', () => choose(-1));
+  function explain() {
+    if (!picked) return;
+    const P = picked.which === 'B' && PB ? PB : PROG, SS = P.S, OUTp = picked.which === 'B' ? lastOUTB : lastOUT;
+    const o = tower.organs[picked.id];
+    const g = SS.groups.find(gr => gr.organs.indexOf(o) >= 0);
+    const hm = (o.p[1]).toFixed(0);
+    let what = PROG.TYPE_NAMES[o.type];
+    if (o.type === 2) what += o.laserFlash ? ' — flash laser de 10 MW au sommet' : o.big ? ' — flash de grande puissance' : ' — petit flash';
+    if (o.type === 4) what += ` — obturateur trichrome ${o.trio.join(' / ')}, moteur ${o.motor} tr/min`;
+    if (o.type === 5 || o.type === 6) what += o.summit ? ' — au sommet, faisceau de 2 km' : ' — en bout de bras, faisceau de 2 km';
+    if (o.type === 7) what += ` — renvoyé par un miroir de l’axe n° ${o.target.ax + 1}`;
+    if (o.type === 1) what += ` — axe n° ${o.axis + 1}, groupe de vitesse « ${o.speed} »`;
+    const I = OUTp ? OUTp.I[o.id] : 0;
+    const colNow = OUTp && OUTp.colour[o.id] !== 255 ? COLFR[OUTp.colour[o.id]] : o.colour;
+    let h = `<div class="pk-h">${what}</div>
+      <div class="pk-s">à ${hm} m, face ${DIRFR[o.d]}${colNow ? ` · couleur ${colNow}` : ''} · organe n° ${o.id + 1} sur ${tower.organs.length}${picked.which === 'B' ? ' · tour B' : ''}</div>`;
+    const on = o.type === 1 ? Math.abs(OUTp ? OUTp.axisSpeed[o.axis] : 0) > 0.01 : I > 0.05;
+    h += `<div class="pk-state ${on ? 'on' : ''}">${o.type === 1 ? (on ? `en rotation, ${(Math.abs(OUTp.axisSpeed[o.axis]) * 60 / (2 * Math.PI)).toFixed(1)} tr/min` : 'à l’arrêt') : o.type === 2 ? (on ? 'éclair à cet instant' : 'éteint à cet instant') : (on ? `allumé, ${(I * 100).toFixed(0)} % de puissance` : 'éteint')}</div>`;
+    if (!g) { $('#pick-body').innerHTML = h; return; }
+    h += `<h4>Groupe</h4><div>centaine ${g.centaine}, classe ${g.cls} · ${g.organs.length} organes tirés au sort ensemble (§ 5.II)</div>`;
+    if (g.fn < 0) {
+      h += `<div class="pk-why">Ce groupe est <b>au repos</b> : avec la tête de série ${SS.head}, son numéro dépasse p = ${SS.p}. Il ne répond à aucune entrée jusqu’à la prochaine réaffectation.</div>`;
+    } else {
+      const f = SS.fns[g.fn], left = Math.max(0, (f.t0 + f.Y * 1000 - simT) / 1000);
+      h += `<h4>Fonction X<sub>${f.i}</sub> = ${f.X}</h4><table class="pk-t"><tr><th>entrée</th><th>A<sub>ij</sub></th><th>x<sub>j</sub></th><th>A·x</th><th></th></tr>`;
+      const rowsT = []; for (let j = 0; j < n; j++) if (f.A[j] > 0) rowsT.push([j, f.A[j], DATA.channels[j].x]);
+      rowsT.sort((a, b) => b[1] * b[2] - a[1] * a[2]);
+      rowsT.forEach(([j, a, x]) => { const c = DATA.channels[j]; h += `<tr><td>x<sub>${j + 1}</sub> ${c.fr}</td><td>${a.toFixed(2)}</td><td>${x.toFixed(2)}</td><td><b>${(a * x).toFixed(2)}</b></td><td><span class="${stClass(c.status)}">${c.status}</span></td></tr>`; });
+      h += `</table><div>f = ${(f.f + f.K).toFixed(3)} · seuil K = ${f.K.toFixed(3)} (abaissé ou relevé par la tonalité τ = ${SS.tau.toFixed(2)}) · f − K = <b class="${f.f > 0 ? 'pos' : 'neg'}">${f.f >= 0 ? '+' : ''}${f.f.toFixed(3)}</b></div>`;
+      if (f.passed) h += `<div>tirage de validation u = ${f.u.toFixed(3)} ${f.u < f.seuil ? '<' : '≥'} ${f.seuil} (régime ${f.reg || SS.regime} au moment du tirage) → ${f.u < f.seuil ? 'validé' : 'refusé'}</div>`;
+      else h += `<div>f − K ≤ 0 : la fonction ne fonctionne pas, quel que soit le tirage.</div>`;
+      if (f.X && f.mode) { const r = f.ranks ? f.ranks[g.organs.indexOf(o)] : 0; h += `<div>mode n° ${f.mode.id} : <i>${f.mode.name}</i> · cet organe est le ${r + 1}<sup>e</sup> sur ${g.organs.length}, commandé ${(f.mode.o === 9 ? 0 : r * f.theta).toFixed(1)} s après le début du cycle (r·θ, θ = ${f.theta.toFixed(2)} s)</div>`; }
+      h += `<div class="dim">cycle de ${f.Y.toFixed(1)} s, nouveau calcul dans ${left.toFixed(0)} s${f.lively ? ' · tirage orienté (une entrée dépasse 0,85)' : ''}</div>`;
+      // why it may still be dark
+      const why = [];
+      if (SS.shutdown) why.push('extinction nocturne');
+      if (!SS.night && (o.type >= 5 && o.type <= 7)) why.push('de jour, gros projecteurs et lasers débranchés (p. 100)');
+      if (o.type === 4 && SS.regime === 'bleu') why.push('régime bleu : projecteurs à obturateurs éteints (annexe 3)');
+      if (colNow && SS.regime === 'bleu' && colNow === 'rouge') why.push('régime bleu : sorties rouges bloquées, B_i = max (organigramme)');
+      if (colNow && SS.regime === 'rouge' && colNow === 'bleu') why.push('régime rouge : sorties bleues bloquées, B_i = max (organigramme)');
+      if (SS.special) why.push(SS.special.kind === 'meteo' ? 'langage conventionnel : annonce météo en cours' : 'langage conventionnel : signal de circulation en cours');
+      if (SS.vanish) why.push('tour disparue dans la fumée');
+      if (SS.antagonist) why.push(`flashes antagonistes (${SS.antagonist.kind})`);
+      if (why.length) h += `<h4>Ce qui l’emporte en ce moment</h4><div>${why.join(' · ')}</div>`;
+    }
+    $('#pick-body').innerHTML = h;
+  }
+  setInterval(explain, 500);
+
   // ---------------- analysis: is the tower still interacting with its environment?
   const mean = a => a.reduce((s, v) => s + v, 0) / Math.max(1, a.length);
   const sd = a => { const m = mean(a); return Math.sqrt(mean(a.map(v => (v - m) ** 2))); };
@@ -266,7 +327,7 @@
     if (!PB) {
       PB = makeProg(Object.assign({ label: 'B' }, critB)); PB.init(tower, n);
       document.body.classList.add('compare');
-      try { VB = makeView(VIEW.cam, { driver: false }); VB.init($('#viewB'), tower); } catch (e) { VB = null; }
+      try { VB = makeView(VIEW.cam, { driver: false }); VB.init($('#viewB'), tower); VB.setOnPick(id => choose(id, 'B')); } catch (e) { VB = null; }
       resizeAll();
     } else { PB.setCriteria(critB); PB.init(tower, n); }
     critForm('#critB', PB); $('#cmp-stop').disabled = false;

@@ -197,7 +197,10 @@ function makeView(sharedCam, opts) {
       if (drag.b === 2 || e.shiftKey) cam.target.y = Math.max(0, Math.min(330, drag.ty + dy * cam.dist / 900));
       else { cam.az = drag.az - dx * 0.005; cam.el = Math.max(-0.15, Math.min(1.45, drag.el + dy * 0.004)); }
     });
-    canvas.addEventListener('pointerup', () => drag = null);
+    canvas.addEventListener('pointerup', e => {
+      if (drag && drag.b === 0 && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5 && onPick) onPick(pick(e.clientX, e.clientY));
+      drag = null;
+    });
     canvas.addEventListener('contextmenu', e => e.preventDefault());
     canvas.addEventListener('wheel', e => { e.preventDefault(); cam.dist = Math.max(40, Math.min(9000, cam.dist * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
   }
@@ -310,9 +313,37 @@ function makeView(sharedCam, opts) {
     // smoke: programme-driven puffs, and the disappearance cloud
     stepSmoke(OUT, ctx, dt, dl);
 
+    if (marker && marker.visible) { const s = 0.03 + 0.008 * Math.sin(nowp / 180); marker.scale.set(s, s, 1); }
     if (hasBloom) { bloom.strength = 0.6 + 0.8 * (1 - dl); composer.render(); } else renderer.render(scene, camera);
   }
   const tmpColor = new THREE.Color();
+  // ---------------- picking a single organ, and the ring that marks it
+  let onPick = null, marker = null, selected = -1;
+  function pick(cx, cy) {
+    const rc = canvas.getBoundingClientRect(), W = rc.width, Hh = rc.height, x0 = cx - rc.left, y0 = cy - rc.top;
+    const v = new THREE.Vector3(); let best = -1, bd = 16, bz = Infinity;
+    for (const o of T.organs) {
+      if (o.type > 7) continue;
+      v.set(o.p[0], o.p[1], o.p[2]).project(camera);
+      if (v.z > 1 || v.z < -1) continue;
+      const sx = (v.x + 1) / 2 * W, sy = (1 - v.y) / 2 * Hh, d = Math.hypot(sx - x0, sy - y0);
+      if (d < bd - 2 || (d < bd + 2 && v.z < bz)) { if (d < bd) bd = d; best = o.id; bz = v.z; }
+    }
+    return best;
+  }
+  function select(id) {
+    selected = id;
+    if (!marker) {
+      const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+      g.strokeStyle = '#ffffff'; g.lineWidth = 5; g.beginPath(); g.arc(32, 32, 24, 0, Math.PI * 2); g.stroke();
+      g.strokeStyle = '#e2a03f'; g.lineWidth = 2; g.beginPath(); g.arc(32, 32, 29, 0, Math.PI * 2); g.stroke();
+      marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true, sizeAttenuation: false }));
+      marker.scale.set(0.035, 0.035, 1); marker.renderOrder = 10; scene.add(marker);
+    }
+    marker.visible = id >= 0;
+    if (id >= 0) marker.position.set(...T.organs[id].p);
+  }
+  function setOnPick(fn) { onPick = fn; }
   function seg(mesh, a, b) {
     const d = b.clone().sub(a), len = d.length();
     tmpQ.setFromUnitVectors(up, d.normalize());
@@ -353,6 +384,6 @@ function makeView(sharedCam, opts) {
 
   function project(x, y, z) { const v = new THREE.Vector3(x, y, z).project(camera); return { x: (v.x + 1) / 2 * canvas.clientWidth, y: (1 - v.y) / 2 * canvas.clientHeight }; }
   function dispose() { try { renderer.dispose(); renderer.forceContextLoss(); } catch (e) { } window.removeEventListener('resize', resize); }
-  return { init, frame, preset, cam, resize, dispose, project, get hasBloom() { return hasBloom; } };
+  return { init, frame, preset, cam, resize, dispose, project, setOnPick, select, get hasBloom() { return hasBloom; } };
 }
 const VIEW = makeView();
