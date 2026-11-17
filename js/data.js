@@ -33,17 +33,22 @@ const DATA = (function () {
   }
 
   // ---------------- astronomy (Observatoire) ----------------
+  // NOAA General Solar Position Calculations (accurate to about a minute in sunrise and sunset)
   function sunPosition(date, lat, lon) {
-    const rad = Math.PI / 180, d = date / 86400000 - 10957.5; // days since J2000
-    const g = rad * (357.529 + 0.98560028 * d), q = 280.459 + 0.98564736 * d;
-    const L = rad * (q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g));
-    const e = rad * (23.439 - 0.00000036 * d);
-    const ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L)), dec = Math.asin(Math.sin(e) * Math.sin(L));
-    const gmst = (18.697374558 + 24.06570982441908 * d) % 24;
-    const ha = rad * (gmst * 15 + lon) - ra;
-    const alt = Math.asin(Math.sin(rad * lat) * Math.sin(dec) + Math.cos(rad * lat) * Math.cos(dec) * Math.cos(ha));
-    const az = Math.atan2(-Math.sin(ha), Math.tan(dec) * Math.cos(rad * lat) - Math.sin(rad * lat) * Math.cos(ha));
-    return { alt: alt / rad, az: az / rad };
+    const rad = Math.PI / 180, d = new Date(date);
+    const y0 = Date.UTC(d.getUTCFullYear(), 0, 1), doy = Math.floor((date - y0) / 86400000) + 1;
+    const leap = (d.getUTCFullYear() % 4 === 0 && d.getUTCFullYear() % 100 !== 0) || d.getUTCFullYear() % 400 === 0;
+    const hr = d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
+    const g = 2 * Math.PI / (leap ? 366 : 365) * (doy - 1 + (hr - 12) / 24);
+    const eqt = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+    const dec = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+    const tst = hr * 60 + eqt + 4 * lon;                       // true solar time, minutes
+    const ha = (tst / 4 - 180) * rad;
+    const cz = Math.max(-1, Math.min(1, Math.sin(lat * rad) * Math.sin(dec) + Math.cos(lat * rad) * Math.cos(dec) * Math.cos(ha)));
+    const zen = Math.acos(cz);
+    let az = Math.acos(Math.max(-1, Math.min(1, (Math.sin(lat * rad) * Math.cos(zen) - Math.sin(dec)) / (Math.cos(lat * rad) * Math.sin(zen))))) / rad;
+    az = ha > 0 ? (az + 180) % 360 : (540 - az) % 360;        // clockwise from north
+    return { alt: 90 - zen / rad, az, dec: dec / rad };
   }
   function moonIllum(date) {
     const syn = 29.530588853, ref = Date.UTC(2000, 0, 6, 18, 14) ;

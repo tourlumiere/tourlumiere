@@ -5,6 +5,7 @@ function makeView(sharedCam, opts) {
   const DRIVER = !opts || opts.driver !== false;
   'use strict';
   let renderer, scene, camera, composer, bloom, T, canvas;
+  let groundMesh = null;
   let memberMesh, mirrorMesh, curvedMesh, lightPts, lightGeo, beaconPts, beams = [], lasers = [], smokePts, smokeGeo, sky, stars, cityPts, hemi, sun, bandLights = [];
   const cam = sharedCam || { az: 0.32, el: 0.1, dist: 720, target: new THREE.Vector3(0, 165, 0), auto: true };
   const mirrorAngle = new Float32Array(400);
@@ -46,7 +47,7 @@ function makeView(sharedCam, opts) {
     for (let b = 0; b < 6; b++) { const L = new THREE.PointLight(0xffffff, 0, 220, 1.6); L.position.set(0, 25 + b * 52, 0); scene.add(L); bandLights.push(L); }
 
     // ----- ground, the city, the historic axis
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000), new THREE.MeshLambertMaterial({ color: 0x15171a }));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000), new THREE.MeshLambertMaterial({ color: 0x15171a })); groundMesh = ground;
     ground.rotation.x = -Math.PI / 2; ground.position.y = GROUND; scene.add(ground);
     const cg = new THREE.BufferGeometry(), cp = [], cc = [];
     for (let i = 0; i < 9000; i++) {
@@ -127,7 +128,7 @@ function makeView(sharedCam, opts) {
       fragmentShader: `uniform float uDay,uVanish; varying vec3 vC; varying float vI;
         void main(){ vec2 d = gl_PointCoord-0.5; float r2 = dot(d,d)*4.; if(r2>1.) discard;
           float a = exp(-r2*14.)*1.4 + exp(-r2*3.2)*0.35;
-          gl_FragColor = vec4(vC*a*vI*(1.-0.6*uDay)*(1.-0.92*uVanish), 1.); }`
+          gl_FragColor = vec4(vC*a*vI*(1.-0.82*uDay)*(1.-0.92*uVanish), 1.); }`
     }));
     scene.add(lightPts);
     // aviation lamps
@@ -225,12 +226,15 @@ function makeView(sharedCam, opts) {
     const alt = ctx.sun.alt, dl = Math.max(0, Math.min(1, (alt + 4) / 14));
     const cl = (ctx.cloud || 50) / 100;
     const sk = ctx.skyRGB || [0.1, 0.1, 0.15];
-    sky.material.uniforms.uHor.value.setRGB(0.02 + sk[0] * 0.9, 0.025 + sk[1] * 0.9, 0.04 + sk[2] * 0.95);
-    sky.material.uniforms.uTop.value.setRGB(0.004 + sk[0] * 0.35 * (1 - cl * 0.4), 0.006 + sk[1] * 0.45, 0.015 + sk[2] * 0.8);
+    const SC = skyColours(alt, cl);
+    sky.material.uniforms.uHor.value.setRGB(...SC.hor);
+    sky.material.uniforms.uTop.value.setRGB(...SC.top);
+    if (groundMesh) groundMesh.material.color.setRGB(...SC.ground);
     const azr = ctx.sun.az * Math.PI / 180, altr = alt * Math.PI / 180;
     const sunDir = new THREE.Vector3(Math.sin(azr) * Math.cos(altr), Math.sin(altr), -Math.cos(azr) * Math.cos(altr)); // az from north, clockwise; +x east, +z south
     sky.material.uniforms.uSunDir.value.copy(sunDir);
     sun.position.copy(sunDir).multiplyScalar(1000); sun.intensity = dl * (1 - cl * 0.6) * 0.9;
+    sky.material.uniforms.uSunCol.value.setRGB(1, 0.75 + 0.2 * Math.min(1, Math.max(0, alt / 20)), 0.45 + 0.45 * Math.min(1, Math.max(0, alt / 20))).multiplyScalar(1 - cl * 0.7);
     hemi.intensity = 0.12 + 0.75 * dl;
     stars.material.opacity = Math.max(0, 1 - dl * 3) * (1 - cl * 0.85);
     cityPts.material.opacity = 0.9 * Math.max(0.05, 1 - dl * 1.6);
@@ -314,7 +318,24 @@ function makeView(sharedCam, opts) {
     stepSmoke(OUT, ctx, dt, dl);
 
     if (marker && marker.visible) { const s = 0.03 + 0.008 * Math.sin(nowp / 180); marker.scale.set(s, s, 1); }
-    if (hasBloom) { bloom.strength = 0.6 + 0.8 * (1 - dl); composer.render(); } else renderer.render(scene, camera);
+    if (hasBloom) { bloom.strength = 0.2 + 1.2 * (1 - dl); bloom.threshold = 0.12 + 0.78 * dl; composer.render(); } else renderer.render(scene, camera);
+  }
+
+  // sky by solar altitude and cloud cover: night, civil/nautical twilight, day (clear blue to overcast grey)
+  const mix3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const sm = (e0, e1, x) => { const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+  function skyColours(alt, cl) {
+    const nightTop = [0.008, 0.012, 0.03], nightHor = [0.075, 0.055, 0.045];          // city glow on the horizon
+    const twTop = [0.06, 0.09, 0.22], twHor = [0.85, 0.45, 0.22];
+    const dayTop = mix3([0.22, 0.42, 0.78], [0.50, 0.53, 0.57], cl), dayHor = mix3([0.70, 0.80, 0.92], [0.70, 0.71, 0.72], cl);
+    const twHorC = mix3(twHor, [0.35, 0.33, 0.33], cl * 0.8);
+    let top, hor;
+    if (alt < -6) { const t = sm(-14, -6, alt); top = mix3(nightTop, twTop, t * 0.6); hor = mix3(nightHor, twHorC, t * 0.35); }
+    else if (alt < 2) { const t = sm(-6, 2, alt); top = mix3(mix3(nightTop, twTop, 0.6), twTop, t); hor = mix3(mix3(nightHor, twHorC, 0.35), twHorC, t); }
+    else { const t = sm(2, 14, alt); top = mix3(twTop, dayTop, t); hor = mix3(twHorC, dayHor, t); }
+    const dl = sm(-4, 10, alt);
+    const ground = mix3([0.07, 0.075, 0.08], mix3([0.46, 0.47, 0.42], [0.38, 0.39, 0.38], cl), dl);
+    return { top, hor, ground };
   }
   const tmpColor = new THREE.Color();
   // ---------------- picking a single organ, and the ring that marks it
