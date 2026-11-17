@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tour Lumière Cybernétique — prototype en données réelles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0d0c0a;--ink2:#171512;--line:#2e2a24;--paper:#efe6d2;--dim:#8c8577;--ochre:#e2a03f;--red:#d4553f;--blue:#5b7cff;--mono:'IBM Plex Mono',ui-monospace,monospace;--serif:'EB Garamond',Garamond,serif}
+[hidden]{display:none!important}*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--ink);color:var(--paper);font-family:var(--mono);font-size:12px;overflow:hidden}
+#view{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab}
+#view:active{cursor:grabbing}
+#view-error{position:fixed;top:50%;left:30%;color:var(--red)}
+#hud{position:fixed;top:14px;left:16px;right:420px;pointer-events:none;display:flex;flex-direction:column;gap:4px}
+body.panel-closed #hud{right:16px}
+#hud h1{font-family:var(--serif);font-weight:400;font-size:28px;letter-spacing:.06em;margin:0;line-height:1;text-transform:uppercase}
+#hud .sub{font-family:var(--serif);font-style:italic;font-size:15px;color:#cbbf9f}
+#hud .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px}
+#clock{color:#cbbf9f}
+#mode{padding:2px 7px;border:1px solid currentColor;font-size:10px;letter-spacing:.12em}
+.mode-live{color:#8fd18b}.mode-sim{color:var(--ochre)}
+.chip{padding:2px 8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;border-radius:2px}
+.reg-bleu{background:#2a3f9e;color:#fff}.reg-normal{background:#5a5348;color:#fff}.reg-rouge{background:#b3261e;color:#fff}
+#hud .k{color:var(--dim)}#hud b{font-weight:500;color:var(--paper)}
+#hud-state{color:#d9c7a0;font-style:italic;font-family:var(--serif);font-size:15px}
+#views{position:fixed;left:16px;bottom:14px;display:flex;gap:4px;flex-wrap:wrap;max-width:60%}
+#views button,#autorot,.btn{background:rgba(20,18,15,.75);color:var(--paper);border:1px solid var(--line);font:inherit;font-size:11px;padding:4px 8px;cursor:pointer}
+#views button:hover,.btn:hover,#autorot:hover{border-color:var(--ochre)}
+#legend{position:fixed;left:16px;bottom:44px;font-size:10px;color:var(--dim);display:flex;gap:10px;flex-wrap:wrap}
+#legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+#panel{position:fixed;top:0;right:0;bottom:0;width:404px;background:rgba(13,12,10,.92);border-left:1px solid var(--line);display:flex;flex-direction:column;backdrop-filter:blur(6px)}
+body.panel-closed #panel{transform:translateX(100%)}
+#panel-toggle{position:fixed;top:12px;right:412px;z-index:5;background:rgba(20,18,15,.8);border:1px solid var(--line);color:var(--paper);font:inherit;padding:3px 7px;cursor:pointer}
+body.panel-closed #panel-toggle{right:12px}
+#tabs{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+#tabs button{flex:1 1 auto;min-width:64px;background:none;border:0;color:var(--dim);font:inherit;font-size:11px;padding:9px 6px;cursor:pointer;border-bottom:2px solid transparent}
+#tabs button.on{color:var(--paper);border-bottom-color:var(--ochre)}
+.tab{overflow:auto;padding:12px 14px 30px;flex:1}
+.tab h2{font-family:var(--serif);font-weight:400;font-size:19px;margin:6px 0 2px}
+.tab h3{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ochre);margin:16px 0 6px;font-weight:500}
+.tab p,.notes{font-family:var(--serif);font-size:14.5px;line-height:1.42;color:#e6dcc6}
+.dim{color:var(--dim)}
+.srow{display:grid;grid-template-columns:1fr 88px;grid-template-areas:"n v" "b s" "src src";gap:2px 8px;padding:7px 0;border-bottom:1px solid #221f1a;position:relative}
+.sname{grid-area:n;font-size:11.5px;padding-right:140px}.sname small{color:var(--dim);margin-left:6px;font-size:10px}.sname .j{color:var(--dim);margin-right:3px}
+.sval{grid-area:v;text-align:right;font-size:10px;color:#cbbf9f;grid-column:1/3;grid-row:2;text-align:left;padding-right:130px;min-height:13px}
+.sbar{position:absolute;right:0;top:9px;width:60px;height:5px;background:#2a2620}.sbar i{display:block;height:100%;background:var(--ochre)}
+.badge{position:absolute;right:66px;top:5px;font-size:9px;letter-spacing:.08em;padding:1px 4px;border:1px solid}
+.st-DIRECT{color:#8fd18b}.st-DIFFERE{color:#d7c46c}.st-DERIVE{color:#79b8d9}.st-SIMULE{color:var(--ochre)}.st-CLE{color:var(--red)}.st-ATTENTE{color:var(--dim)}
+.spark{position:absolute;right:0;top:20px;width:120px;height:22px}
+.ssrc{grid-area:src;font-size:9.5px;color:var(--dim)}.ssrc a{color:var(--dim)}
+.legend-st{font-size:10px;color:var(--dim);line-height:1.6}.legend-st span{margin-right:8px}
+#live-count{color:#8fd18b}
+.regbox{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:11.5px}
+#reg-name{padding:1px 8px}
+#bits{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:6px 0}
+.bit{font-size:9.5px;color:var(--dim);display:flex;gap:4px;align-items:center}.bit i{width:10px;height:10px;border:1px solid #6a6253}.bit.on i{background:var(--paper)}.bit.on{color:var(--paper)}
+canvas.fig{width:100%;background:#12110e;border:1px solid var(--line)}
+#groups{width:100%;image-rendering:pixelated;border:1px solid var(--line);cursor:crosshair}
+#types{font-size:10.5px;display:grid;gap:2px;margin-top:6px}#types i{display:inline-block;width:8px;height:8px;margin-right:6px}#types b{color:var(--paper);font-weight:500}
+#insp{font-size:11px;background:#12110e;border:1px solid var(--line);padding:8px;margin-top:6px}
+#insp table{width:100%;border-collapse:collapse;margin:6px 0;font-size:10.5px}#insp td,#insp th{text-align:left;padding:1px 4px;color:#cbbf9f;font-weight:400}#insp th{color:var(--dim)}
+.ieq{margin-top:3px}.pos{color:#8fd18b}.neg{color:var(--red)}.ih{color:var(--paper)}
+.formula{font-family:var(--serif);font-size:16px;text-align:center;margin:6px 0;color:#efe6d2}
+#abacus{width:100%;background:#1a1612;border:1px solid var(--line)}
+#indiff-log{font-size:10.5px;line-height:1.45;margin-top:6px}#indiff-log time{color:var(--dim);margin-right:6px}
+#teletype{background:#ece4cf;color:#1c1a16;font-family:var(--mono);font-size:11px;line-height:1.5;padding:12px 14px;height:calc(100vh - 150px);overflow:auto;white-space:pre-wrap;box-shadow:inset 0 0 40px rgba(0,0,0,.18);background-image:repeating-linear-gradient(transparent 0 32px,rgba(120,150,120,.13) 32px 64px)}
+#schema svg{width:100%}
+.sch text{fill:#d9cfba;font-family:var(--mono);font-size:9px}.sch .lbl{fill:var(--dim)}
+.sch .d{stroke:#cbbf9f;stroke-dasharray:4 3;fill:none;animation:flow 1.2s linear infinite}.sch .s{stroke:#cbbf9f;fill:none}
+@keyframes flow{to{stroke-dashoffset:-14}}
+.sch circle.p{fill:#12110e;stroke:#cbbf9f}.sch circle.p.fire{fill:var(--red);stroke:#fff}
+.sch-tower{fill:#5a5348}.sch-tower.reg-bleu{fill:#2a3f9e}.sch-tower.reg-rouge{fill:#b3261e}
+.set label{display:block;margin:6px 0 2px;color:var(--dim)}.set input[type=text],.set input[type=password],.set select{width:100%;background:#12110e;border:1px solid var(--line);color:var(--paper);font:inherit;padding:5px}
+.set .rowi{display:flex;gap:10px;align-items:center;margin:5px 0}
+#overlay{position:fixed;inset:0;background:radial-gradient(ellipse at 30% 40%,rgba(30,24,16,.55),rgba(8,7,6,.94));display:flex;align-items:center;justify-content:center;z-index:20}
+#overlay .card{max-width:620px;padding:34px 38px;border:1px solid var(--line);background:rgba(13,12,10,.9)}
+#overlay h2{font-family:var(--serif);font-weight:400;font-size:34px;margin:0 0 4px;letter-spacing:.04em}
+#overlay p{font-family:var(--serif);font-size:16px;line-height:1.45;color:#ddd2bb}
+#overlay .opts{display:flex;gap:18px;margin:14px 0 18px;font-size:11.5px}
+#start{background:var(--paper);color:var(--ink);border:0;font:inherit;font-size:13px;letter-spacing:.14em;padding:11px 22px;cursor:pointer;text-transform:uppercase}
+#overlay.going #start{opacity:.5}
+#simnote{position:fixed;left:16px;top:150px;max-width:420px;background:rgba(40,28,10,.92);border:1px solid var(--ochre);padding:10px 12px;font-family:var(--serif);font-size:14px;line-height:1.35;z-index:4}
+#simnote button{float:right;background:none;border:0;color:var(--paper);cursor:pointer}
+.notes h3{font-family:var(--mono)}
+.notes p{margin:0 0 10px}
+.refs{font-family:var(--serif);font-size:13px;color:#cbbf9f;line-height:1.4}
+
+#viewB{position:fixed;top:0;bottom:0;display:none;cursor:grab;border-left:1px solid var(--line)}
+body.compare #view{width:calc((100% - 404px) / 2)}
+body.compare #viewB{display:block;left:calc((100% - 404px) / 2);width:calc((100% - 404px) / 2);height:100%}
+body.compare.panel-closed #view{width:50%} body.compare.panel-closed #viewB{left:50%;width:50%}
+.cmplabel{position:fixed;bottom:80px;display:none;font-size:11px;background:rgba(13,12,10,.8);border:1px solid var(--line);padding:4px 8px;max-width:calc((100% - 440px) / 2)}
+body.compare .cmplabel{display:block}#labelA{left:16px}#labelB{left:calc((100% - 404px) / 2 + 16px)}
+body.compare.panel-closed #labelB{left:calc(50% + 16px)}
+.st-ARCHIVE{color:#c9a7ff}.mode-archive{color:#c9a7ff}
+#overlay-facade{position:fixed;pointer-events:none;mix-blend-mode:screen;opacity:.7;z-index:2}
+#docs{display:grid;grid-template-columns:1fr 1fr;gap:10px}#docs figure{margin:0;cursor:zoom-in}#docs img{width:100%;display:block;background:#222;filter:grayscale(1) contrast(1.05)}
+#docs figcaption{font-family:var(--serif);font-size:12.5px;line-height:1.25;margin-top:3px;color:#d9cfba}#docs figure.missing{display:none}
+#lightbox{position:fixed;inset:0;background:rgba(6,5,4,.94);z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:zoom-out;padding:24px}
+#lightbox img{max-width:92vw;max-height:84vh;object-fit:contain;background:#fff}#lb-cap{font-family:var(--serif);font-size:15px;margin-top:10px;color:#ddd2bb}
+table.ana{width:100%;border-collapse:collapse;font-size:10.5px;margin:4px 0 8px}table.ana td,table.ana th{padding:2px 4px;text-align:left;color:#cbbf9f;font-weight:400;border-bottom:1px solid #221f1a}table.ana th{color:var(--dim)}
+table.ana i{display:block;height:6px}
+.crit{display:grid;grid-template-columns:1fr 1fr;gap:2px 10px}.crit label{margin:4px 0 0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#cmp-presets button{margin:2px}
+@media (max-width:900px){#panel{width:100%;top:45%}#panel-toggle{right:12px;top:auto;bottom:56%}#hud{right:16px}#hud h1{font-size:20px}}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas><canvas id="viewB"></canvas><img id="overlay-facade" src="img/facade2-overlay.png" alt="" hidden>
+<div class="cmplabel" id="labelA">A — critères de référence · <span id="labelA-stats"></span></div><div class="cmplabel" id="labelB"><span id="labelB-text">B</span> · <span id="labelB-stats"></span></div>
+<div id="view-error" hidden></div>
+
+<div id="hud">
+  <h1>Tour Lumière Cybernétique</h1>
+  <div class="sub">Nicolas Schöffer, La Défense, 1962–1973 · prototype en données réelles</div>
+  <div class="row"><span id="clock"></span><span id="mode">—</span><span id="live-count" class="k"></span></div>
+  <div class="row"><span class="k">régime</span><span id="hud-reg" class="chip reg-normal">—</span><span class="k">D =</span><b id="hud-D">—</b>
+    <span class="k">organes allumés</span><b id="hud-lit">0</b><span class="k">/ <span id="count-total"></span> paramètres d’action ·</span><span class="k">axes tournants</span><b id="hud-spin">0</b><span class="k">/ 114</span></div>
+  <div class="row"><span id="hud-state"></span></div>
+</div>
+<div id="legend"><span><i style="background:#3a6bff"></i>bleu</span><span><i style="background:#ff1f1a"></i>rouge</span><span><i style="background:#ffdb2e"></i>jaune</span><span><i style="background:#ff8014"></i>orange</span><span><i style="background:#9e38ff"></i>violet</span><span><i style="background:#fff7ea"></i>blanc</span><span>· glisser : tourner · molette : distance · maj+glisser : hauteur</span></div>
+<div id="views"><button data-v="paris">depuis Paris</button><button data-v="pied">au pied</button><button data-v="plateforme">plate-forme 272 m</button><button data-v="lointain">de loin</button><button data-v="facade">façade 2</button><button data-v="plan">plan</button><button id="autorot">rotation auto</button></div>
+
+<button id="panel-toggle" title="panneau">☰</button>
+<aside id="panel">
+  <nav id="tabs">
+    <button data-tab="capteurs" class="on">Capteurs</button><button data-tab="programme">Programme</button><button data-tab="indifference">Indifférence</button><button data-tab="teletype">Télétype</button><button data-tab="analyse">Analyse</button><button data-tab="comparer">Comparer</button><button data-tab="archives">Archives</button><button data-tab="documents">Documents</button><button data-tab="schema">Schéma</button><button data-tab="notes">Notes</button><button data-tab="reglages">Réglages</button>
+  </nav>
+
+  <section class="tab" id="tab-capteurs">
+    <div class="legend-st"><span class="st-DIRECT">DIRECT</span> en temps réel · <span class="st-DIFFERE">DIFFÉRÉ</span> publié avec retard · <span class="st-DERIVE">DÉRIVÉ</span> calculé d’après des données réelles · <span class="st-SIMULE">SIMULÉ</span> méthode de 1973 · <span class="st-CLE">CLÉ</span> clé gratuite requise · <span class="st-ARCHIVE">ARCHIVE</span> jour rejoué</div>
+    <h3>Informations proches · capteurs fixés à l’ossature</h3><div id="sens-proche"></div>
+    <h3>Informations lointaines · par télescripteurs</h3><div id="sens-lointain"></div>
+  </section>
+
+  <section class="tab" id="tab-programme" hidden>
+    <h3>Annexe 1 · coefficient d’excitation de l’environnement</h3>
+    <div class="formula">D = Σ A<sup>j</sup> X<sub>e</sub><sup>j</sup> &nbsp; (j = 1 … 10, A<sup>j</sup> = 1)</div>
+    <div class="regbox"><span class="dim">régime</span><span><span id="reg-name">—</span> · D = <b id="reg-D">—</b> · seuil de validation <b id="reg-seuil">—</b></span>
+      <span class="dim">tonalité générale τ</span><span id="reg-tau">—</span></div>
+    <div id="bits"></div>
+    <h3>Fig. 1 · états des capteurs en fonction du temps (5 min)</h3>
+    <canvas id="fig1" class="fig" width="760" height="300"></canvas>
+    <h3>§ 5 · fonctions booléennes et répartition en groupes</h3>
+    <div class="formula">X<sub>i</sub> = 1 si Σ<sub>j</sub> A<sub>ij</sub> x<sub>j</sub> − K<sub>i</sub> &gt; 0 &nbsp;·&nbsp; θ<sub>i</sub> = Y<sub>i</sub> / N<sub>i</sub></div>
+    <div id="pq" class="dim"></div>
+    <canvas id="groups" width="720" height="330"></canvas>
+    <div class="dim" style="font-size:10px">chaque case : un groupe (classe d’une centaine) · couleur = type de programme-paramètre quand X<sub>i</sub> = 1 · sombre : au repos · survoler pour inspecter</div>
+    <div id="types"></div>
+    <h3>Inspection d’une fonction</h3><div id="insp"></div>
+  </section>
+
+  <section class="tab" id="tab-indifference" hidden>
+    <h3>Cellule d’indifférence · « un boulier par exemple » (p. 100)</h3>
+    <canvas id="abacus" width="760" height="330"></canvas>
+    <canvas id="actchart" class="fig" width="760" height="200" style="margin-top:8px"></canvas>
+    <h3>Interventions</h3><div id="indiff-log"></div>
+  </section>
+
+  <section class="tab" id="tab-teletype" hidden><div id="teletype"></div></section>
+
+
+  <section class="tab" id="tab-analyse" hidden>
+    <h3>Enregistreur</h3>
+    <p class="dim" style="font-size:13px">Chaque pas de 5 s est consigné : les 28 entrées et leur statut, les 10 capteurs du régime, D, τ, l’état de chaque fonction X<sub>i</sub>, le nombre d’organes allumés ; et chaque événement (régimes, réaffectations, cellule d’indifférence, perturbations).</p>
+    <div id="rec-count" class="dim"></div>
+    <div class="rowi" style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0"><button class="btn" id="rec-dl">télécharger les relevés (CSV)</button><button class="btn" id="rec-dl-ev">télécharger les événements (CSV)</button><button class="btn" id="rec-copy">copier</button><button class="btn" id="rec-clear">effacer</button><button class="btn" id="ana-run">recalculer</button></div>
+    <div id="rec-msg" class="dim"></div>
+    <div id="ana"></div>
+  </section>
+
+  <section class="tab set" id="tab-comparer" hidden>
+    <h3>Deux programmes, mêmes données</h3>
+    <p class="dim" style="font-size:13px">Tout ce que Schöffer laisse aux « critères artistiques » est réglable ici. La tour B reçoit exactement les mêmes entrées que la tour A ; seules diffèrent les lois du programme.</p>
+    <div id="cmp-presets"><span class="dim">B :</span> <button class="btn" data-p="proportion">60/75/90 % = part allumée</button><button class="btn" data-p="uniforme">lois uniformes</button><button class="btn" data-p="sobre">1–2 entrées par fonction</button><button class="btn" data-p="vive">rythme vif</button><button class="btn" data-p="lente">rythme lent</button><button class="btn" data-p="ouverte">presque tout commandé</button></div>
+    <div class="cols"><div><h3>A</h3><div class="crit" id="critA"></div><button class="btn" id="critA-apply" style="margin-top:6px">appliquer à A</button></div>
+    <div><h3>B</h3><div class="crit" id="critB"><span class="dim">—</span></div><div style="margin-top:6px"><button class="btn" id="cmp-start">lancer / appliquer B</button> <button class="btn" id="cmp-stop" disabled>arrêter</button></div></div></div>
+    <p class="dim" style="font-size:12.5px;margin-top:10px">κ multiplie le seuil K<sub>i</sub> calé sur la moyenne des entrées ; un κ bas fait fonctionner davantage. L’analyse compare R² et corrélations des deux tours.</p>
+  </section>
+
+  <section class="tab set" id="tab-archives" hidden>
+    <h3>Rejouer une journée</h3>
+    <p class="dim" style="font-size:13px">Archives disponibles depuis un navigateur : météo et vents à 10/80/120/180 m (Open-Meteo, depuis 2022), circulation parisienne heure par heure (depuis le 1<sup>er</sup> octobre 2025), séismes (EMSC), urgences (hebdomadaire), BCE, consultations horaires de fr.wikipedia. Les autres lignes passent en simulation. La circulation d’un jour n’est publiée que le lendemain.</p>
+    <label>Jour</label><input type="date" id="rp-day" min="2022-01-01">
+    <label>Heure de départ</label><select id="rp-hour"><option value="0">00 h</option><option value="1">01 h</option><option value="2">02 h</option><option value="3">03 h</option><option value="4">04 h</option><option value="5">05 h</option><option value="6">06 h</option><option value="7">07 h</option><option value="8">08 h</option><option value="9">09 h</option><option value="10">10 h</option><option value="11">11 h</option><option value="12">12 h</option><option value="13">13 h</option><option value="14">14 h</option><option value="15">15 h</option><option value="16">16 h</option><option value="17" selected>17 h</option><option value="18">18 h</option><option value="19">19 h</option><option value="20">20 h</option><option value="21">21 h</option><option value="22">22 h</option><option value="23">23 h</option></select>
+    <label>Vitesse</label><select id="rp-speed"><option value="1">temps réel</option><option value="10">× 10</option><option value="30" selected>× 30</option><option value="60">× 60 (une heure par minute)</option><option value="180">× 180</option></select>
+    <div class="rowi"><button class="btn" id="rp-go">rejouer</button><button class="btn" id="rp-stop" disabled>retour au direct</button></div>
+    <div id="rp-msg" class="dim" style="font-size:12px"></div>
+  </section>
+
+  <section class="tab" id="tab-documents" hidden>
+    <h3>Planches du livre</h3>
+    <div class="rowi" style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><button class="btn" id="ov-toggle">superposer la façade 2 (p. 132)</button><input type="range" id="ov-opacity" min="0.1" max="1" step="0.05" value="0.7"></div>
+    <div id="docs"></div>
+    <p class="dim" style="font-size:12px;margin-top:10px">Nicolas Schöffer, <i>La Tour Lumière Cybernétique</i>, Paris, Denoël/Gonthier, 1973. Œuvres de Nicolas Schöffer © ADAGP, Paris.</p>
+  </section>
+
+  <section class="tab" id="tab-schema" hidden>
+    <h3>Schéma théorique du fonctionnement de la T.L.C. (p. 99)</h3>
+    <div id="schema"><svg class="sch" viewBox="0 0 380 330">
+      <circle cx="62" cy="270" r="42" class="s"/><text x="110" y="300">environnement</text><text id="sch-env-x" x="40" y="274" class="lbl">τ</text>
+      <g class="s"><path d="M30 255 L96 120"/><path d="M45 240 L99 120"/><path d="M62 236 L101 120"/><path d="M80 240 L104 120"/><path d="M94 252 L107 120"/></g>
+      <text x="22" y="214" transform="rotate(-63 22 214)" class="lbl">informations extérieures</text>
+      <rect x="96" y="100" width="20" height="20" class="s"/><text x="84" y="94">capteurs</text><text id="sch-cap" x="98" y="134" class="lbl"></text>
+      <path d="M116 110 H150" class="d"/><rect x="150" y="96" width="62" height="28" class="s"/><text x="157" y="114">régulateur</text><text id="sch-reg" x="158" y="140" class="lbl"></text>
+      <path d="M212 110 H262" class="d"/>
+      <circle id="sch-acc" cx="226" cy="62" r="8" class="p"/><circle id="sch-ind" cx="248" cy="62" r="8" class="p"/>
+      <path d="M226 70 V110 M248 70 V110" class="d"/>
+      <text x="150" y="40">perturbations accidentelles</text><text x="196" y="22">cellule d’indifférence</text>
+      <rect id="sch-tower" x="262" y="40" width="44" height="170" class="sch-tower"/><text x="268" y="104">système</text><text x="272" y="116">régulé</text><text x="273" y="196">LA TOUR</text>
+      <path d="M306 110 H318" class="d"/><path d="M318 70 L374 110 L318 150 Z" class="s"/><text x="321" y="113" style="font-size:8px">régulant</text>
+      <path d="M340 130 V240 H106 V120" class="d"/><text x="130" y="236" class="lbl">rétroaction directe sur les capteurs</text>
+      <path d="M352 120 V286 H104" class="d"/><text x="160" y="282" class="lbl">rétroaction sur l’environnement</text>
+    </svg></div>
+    <p class="dim" style="font-size:13px">Les deux petits cercles s’allument quand une perturbation accidentelle ou la cellule d’indifférence intervient. La couleur de la tour suit le régime.</p>
+  </section>
+
+  <section class="tab notes" id="tab-notes" hidden>
+    <h2>On this prototype</h2>
+    <p>Schöffer gives the Tour Lumière Cybernétique two programmes, and they do not quite coincide. The <i>Programme du calculateur</i> (Appendix 5, pp. 108–111) states the general case: Boolean functions X<sub>i</sub> of the normalised inputs, organs dealt by lot into groups, and, for each function that fires, a random duration Y<sub>i</sub> and a randomly drawn mode of operation. The <i>Simulation du fonctionnement</i> (Appendix 6, pp. 112–124), run in Fortran IV on a CDC 6400, reduces the tower to six windows and thirty-three outputs, and supplies what the general programme lacks, namely the coefficient of excitation D computed over ten binary sensors and the three régimes it selects. The prototype runs both together. The régime of the simulation governs colour, intensity and the validating draw; the general programme decides which organs are commanded, for how long and in what order, across the full inventory of the 1973 text (2,250 projectors, 2,085 flashes, 40 marine projectors, 24 lasers, 263 mirrors on 114 axes).</p>
+    <h3>The form of the tower</h3>
+    <p>The structure is traced from the sheet <i>Façade et circulation verticale</i> (p. 132). Read against Annex 7, the drawing yields a scale of about 0.23 m to the unit: its five platforms fall at 91, 142, 231, 267 and 300 m, where the structural calculation places them at 92, 144, 236, 272 and 307 m. The core measures some 36 m on façade 2 and 23 m on section 6; the cantilevered arms come in pairs, and it is between these pairs that the first vertical axes are set, which is how the night renderings (pp. 87, 89) show the mirrors. A wider frame encloses the lower 76 m, and the socle is an inverted trapezoid, 70 m at the slab. The sheet shows only the arms lying in its two planes; the rest of the two hundred named on p. 26 are placed within the envelope those arms define. The maquette photographed on p. 86 belongs to an earlier, denser state of the project and has not been followed. The façade can be laid over the rendering from the Documents tab.</p>
+    <h3>Inputs</h3>
+    <p>The ten sensors that set the régime are those of the 1973 simulation: four microphones of increasing sensitivity, four anemometers at different altitudes, and two road-traffic sensors that fire when a Poisson draw exceeds its mean (p. 115). The anemometers read the winds given by Open-Meteo at 10, 80, 120 and 180 m above La Défense, which answers fairly closely to Schöffer’s “capteurs de vent supposés à des altitudes différentes”; the road sensors take their mean from the Ville de Paris counters. Without a microphone on site, sound is estimated from the same counts by the CoRTN relation, unless the viewer’s own microphone is switched on. All twenty-eight channels enter the functions X<sub>i</sub> as x<sub>j</sub>, and the remote ones, averaged, give the “tonalité générale” (p. 113) by lowering or raising the thresholds K<sub>i</sub>.</p>
+    <p>The teletype has been replaced by whatever a browser may still request without credentials, and the substitutions should be read as substitutions. The P.T.T. become two rates of transmission: French-language posts on Bluesky for the telephones, edits to the French Wikipedia for the telegraphs. The noise at the back of the Chamber becomes a compound of sitting hours, the LCP wire and public posts naming the Assembly. Air navigation is reduced to aeronautical meteorology at Roissy, since no source of air traffic will answer a browser. The Préfecture’s counts are published a day late, so, taking Schöffer at his word that the city unfolds “un programme type de rythmes qui se déroulent sur 24 heures” (p. 29), the prototype reads the previous day at the present hour. The Bourse and the R.A.T.P./S.N.C.F. lines need free keys (Réglages). The sapeurs-pompiers have no open real-time source and remain simulated, by the Poisson method of 1973. Frame stresses are computed from the live wind with Schöffer’s own structural figures (pp. 126–127: Sv = 5,850 m², global coefficient 1.5, design shear 840 t) and from EMSC seismicity.</p>
+    <h3>Degrees of fidelity</h3>
+    <p>Three registers should be kept apart. Taken from the text: the functions X<sub>i</sub> = 1 when Σ A<sub>ij</sub>x<sub>j</sub> − K &gt; 0, with A<sub>ij</sub> random or null; the hundreds split by lot into five classes and the head number that assigns them; θ<sub>i</sub> = Y<sub>i</sub>/N<sub>i</sub>; D over ten binary sensors and its three régimes; the validating draw against 0.60, 0.75 and 0.90; the Poisson rule for the road sensors; the table of the shutter projectors; the night schedule and the daytime disconnection of the large projectors and lasers; the eight types of programme-parameter. Readings of ambiguous passages: the joining of the two programmes, which folds the simulation’s own output functions F<sub>i</sub> = Σ C<sub>ij</sub>X<sub>e</sub><sup>j</sup> − B<sub>i</sub> into the general X<sub>i</sub>; the tonality acting on K; the organigramme’s “B<sub>i</sub> = max” taken as a gate on colour; the 60, 75 and 90 per cent taken as brightness, where they might equally be the share of organs lit (the Comparer tab runs both). Decisions where the text defers to “critères artistiques”, listed below.</p>
+    <h3>Where the text is silent</h3>
+    <p>Each X<sub>i</sub> is sensitive to three to seven inputs, with A<sub>ij</sub> uniform on (0, 1). K<sub>i</sub> is set against the running mean of its inputs, so that a function fires a little more than half the time. Seventy-two per cent of the groups carry a function and the rest are at rest. Y<sub>i</sub> follows a gamma law whose mean depends on the type of organ. Functions are reassigned every five minutes, the period Stener Jørgensen and Laplante-Anfossi suggest. The fifty modes (“50 environ”, p. 111) are the product of ten orderings and five envelopes, both taken from the vocabulary of p. 101. The cellule d’indifférence watches for a recurring peak in the autocorrelation of activity, for saturation and stagnation relative to the evening’s own mean, and for a régime held longer than ten minutes; it answers by redrawing a third of the sensitivities and by antagonist flashes (pp. 29, 100, 115). The disappearance in smoke lasts ten minutes, after Stener Jørgensen (2024), and is set off by a felt earthquake, by the city’s threshold of excitation, or by hand. Gusts are interpolated between hourly winds; the noise estimate and the seismic attenuation are orders of magnitude only.</p>
+    <h3>Textual difficulties</h3>
+    <p>The printed formula reads θ<sub>i</sub> = N<sub>i</sub>/Y<sub>i</sub>, while the sentence introducing it divides Y<sub>i</sub> by N<sub>i</sub>; the prototype follows the sentence. The régimes are given as D ≤ 3, 3 &lt; D &lt; 8 and D ≥ 8 in Annex 1, and as “3 ou moins”, “entre 4 et 7” and “entre 8 et 10” on p. 114, which agree for integers. The inventory of p. 26 (4,664 parameters of action) differs from that of Annex 2 (2,592 Cibié projectors, 1,977 Orthotron flashes, 60 Fulgor, 12 arc projectors, 343 cabinets); the former has been used. The night renderings paint the frame pale, where p. 26 specifies Corten steel; the rendering here sits between the two.</p>
+    <h3>Instruments</h3>
+    <p>Stener Jørgensen and Laplante-Anfossi argue that a programme which treats every input as so much volume of information, passed through several probability laws, would be unpredictable locally and self-similar globally, a “big blur” in which the tower behaves as though it were no longer interacting with its environment. Three instruments bear on the claim. The Analyse tab records every step and estimates how much of the tower’s variation the twenty-eight inputs explain (R²), which inputs it follows, and how quickly its fluctuations average out as the window widens. The Comparer tab runs a second programme on the same data under different criteria, so that what belongs to Paris can be separated from what belongs to the laws of chance. The Archives tab replays a past day, so that an ordinary Tuesday can be set against a day of strikes or storms.</p>
+    <h3>Sources</h3>
+    <div class="refs">Nicolas Schöffer, <i>La Tour Lumière Cybernétique</i> (Paris: Denoël/Gonthier, 1973; Naima, 2018), pp. 25–35 and Appendices 1–7. Plates © ADAGP, Paris.<br>
+    Nina Stener Jørgensen and Guillaume Laplante-Anfossi, “Closing the Open System: Review of Nicolas Schöffer’s <i>La Tour Lumière Cybernétique</i> (1973),” <i>Footprint</i> 16, no. 2 (2022): 135–144.<br>
+    Nina Stener Jørgensen, “The Power of the Tower: Nicolas Schöffer’s Tour Lumière Cybernétique for La Défense (1962–1973),” <i>Architectural Histories</i> 12, no. 1 (2024): 1–19.<br><br>
+    Data: Open-Meteo (forecast and historical forecast); EMSC; Ville de Paris (comptages routiers permanents, Vélib’); Santé publique France (Odissé); European Central Bank via Frankfurter; franceinfo and LCP via rss2json; Bluesky Jetstream and public API; Wikimedia EventStreams and pageview API; Radio France live streams; optionally Alpha Vantage and Île-de-France Mobilités PRIM.</div>
+  </section>
+
+  <section class="tab set" id="tab-reglages" hidden>
+    <h3>Clés (gratuites, conservées dans ce navigateur)</h3>
+    <label>Alpha Vantage · clé API (la Bourse)</label><input id="av-key" type="password" autocomplete="off">
+    <label>Symbole coté (par défaut EWQ, iShares MSCI France)</label><input id="av-sym" type="text">
+    <label>Île-de-France Mobilités PRIM · clé API (Métro, R.E.R., S.N.C.F.)</label><input id="prim-key" type="password" autocomplete="off">
+    <div class="rowi"><button class="btn" id="keys-save">Enregistrer</button><span id="keys-msg" class="dim"></span></div>
+    <div class="dim" style="font-size:10.5px">alphavantage.co/support/#api-key · prim.iledefrance-mobilites.fr</div>
+    <h3>Programme général (p. 100)</h3>
+    <div class="rowi"><label style="margin:0"><input type="radio" name="shut" value="0-8"> extinction de minuit à 8 h</label><label style="margin:0"><input type="radio" name="shut" value="2-6"> ou de 2 à 6 h</label></div>
+    <div class="rowi"><label style="margin:0"><input type="checkbox" id="lang"> langage conventionnel (météo à 19 h / 21 h 30, circulation 17–20 h)</label></div>
+    <h3>Horloge du programme</h3>
+    <div class="rowi"><select id="speed"><option value="1">temps réel</option><option value="5">× 5</option><option value="20">× 20</option><option value="60">× 60</option></select><button class="btn" id="btn-now">revenir à l’heure</button></div>
+    <div class="dim" style="font-size:10.5px">L’accélération porte sur le programme et l’horloge ; les données restent celles du moment.</div>
+    <h3>Entrées audio</h3>
+    <div class="rowi"><label style="margin:0"><input type="checkbox" id="radio" checked> France Inter et franceinfo (analysés, non diffusés)</label></div>
+    <div class="rowi"><label style="margin:0"><input type="checkbox" id="mic"> microphone local à la place du bruit estimé</label></div>
+    <h3>Commandes</h3>
+    <div class="rowi"><button class="btn" id="btn-smoke">déclencher les bombes fumigènes</button><button class="btn" id="btn-reassign">réaffecter les groupes</button></div>
+  </section>
+</aside>
+<div id="lightbox" hidden><img id="lb-img" alt=""><div id="lb-cap"></div></div>
+
+<div id="simnote" hidden><button id="simnote-close">×</button>This copy cannot reach the network, so every line runs in simulation by Schöffer’s own 1973 method. The live version runs on the public site or from the downloaded file.</div>
+
+<div id="overlay"><div class="card">
+  <h2>Tour Lumière Cybernétique</h2>
+  <p>A working reconstruction of Nicolas Schöffer’s programme for the unbuilt tower at La Défense (1973). It takes its immediate and remote inputs from present-day Paris and runs them through the computer programme, simulation régimes and cellule d’indifférence described in the book’s appendices.</p>
+  <p class="dim" style="font-size:14px">Starting it connects to about a dozen public data services and, if checked, analyses two Radio France live streams without playing them aloud.</p>
+  <div class="opts"><label><input type="checkbox" id="start-radio" checked> radio (O.R.T.F.)</label><label><input type="checkbox" id="start-mic"> microphone local</label></div>
+  <button id="start">Mettre en marche</button>
+</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="js/tower.js"></script>
+<script src="js/data.js"></script>
+<script src="js/program.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>

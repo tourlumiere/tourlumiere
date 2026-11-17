@@ -1,0 +1,375 @@
+/* ==========================================================================
+   INTERFACE — the cybernetic centre's console
+   ========================================================================== */
+(function () {
+  'use strict';
+  const $ = s => document.querySelector(s), $$ = s => Array.from(document.querySelectorAll(s));
+  const tower = TOWER.build(1973);
+  const n = DATA.channels.length;
+  const remoteIdx = DATA.channels.map((c, i) => c.grp === 'lointain' ? i : -1).filter(i => i >= 0);
+  const LIVE_ST = ['DIRECT', 'DIFFÉRÉ', 'DÉRIVÉ', 'ARCHIVE'];
+  PROG.init(tower, n);
+  const S = PROG.S;
+  let PB = null, VB = null; // comparison programme and view
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('tlc.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('tlc.' + k, JSON.stringify(v)); } catch (e) { } }
+  };
+  const opt = { speed: 1, shutdownWindow: store.get('shutdown', [0, 8]), language: store.get('language', true), manualSmoke: false, dusk: false };
+  Object.assign(DATA.cfg, { avKey: store.get('avKey', ''), avSymbol: store.get('avSymbol', 'EWQ'), primKey: store.get('primKey', '') });
+
+  const counts = {}; tower.organs.forEach(o => counts[o.type] = (counts[o.type] || 0) + 1);
+  $('#count-total').textContent = tower.organs.filter(o => o.type <= 7).length.toLocaleString('fr-FR');
+
+  // ---------------- 3D
+  let viewOK = true;
+  try { VIEW.init($('#view'), tower); } catch (e) { viewOK = false; $('#view-error').hidden = false; $('#view-error').textContent = 'WebGL indisponible : ' + e.message; }
+
+  // ---------------- recorder (always on, in memory)
+  const REC = { rows: [], events: [], max: 30000, seen: new WeakSet() };
+  let lastLitA = 0, lastLitB = 0;
+  function record(t, bits) {
+    const row = {
+      t, mode: DATA.REPLAY.active ? 'archive ' + DATA.REPLAY.day : DATA.mode, regime: S.regime, D: S.D, tau: S.tau,
+      act: S.hist.act[S.hist.act.length - 1] || 0, lit: lastLitA, X: S.fns.map(f => f.group ? f.X : '-').join(''),
+      bits: bits.join(''), x: DATA.channels.map(c => c.x), st: DATA.channels.map(c => c.status)
+    };
+    if (PB) { row.actB = PB.S.hist.act[PB.S.hist.act.length - 1] || 0; row.litB = lastLitB; row.XB = PB.S.fns.map(f => f.group ? f.X : '-').join(''); }
+    REC.rows.push(row); if (REC.rows.length > REC.max) REC.rows.shift();
+    S.events.forEach(e => { if (!REC.seen.has(e)) { REC.seen.add(e); REC.events.push(Object.assign({ prog: 'A' }, e)); } });
+    if (PB) PB.S.events.forEach(e => { if (!REC.seen.has(e)) { REC.seen.add(e); REC.events.push(Object.assign({ prog: 'B' }, e)); } });
+  }
+
+  // ---------------- loop
+  let simT = Date.now(), lastReal = performance.now(), lastTick = -1e12, lastUI = 0, lastSeisT = null, started = false;
+  function litCount(OUT) { let k = 0; for (let i = 0; i < OUT.I.length; i++) if (OUT.I[i] > 0.05) k++; return k; }
+  function loop() {
+    const nowp = performance.now(); const dt = (nowp - lastReal); lastReal = nowp;
+    simT += dt * opt.speed;
+    if (started && simT - lastTick >= 5000) {
+      lastTick = simT;
+      const bits = DATA.tick(simT);
+      const ctx = DATA.ctx;
+      const ph = DATA.byId.photo; const rad = (ph.status === 'DIRECT' || ph.status === 'ARCHIVE') ? ph.raw : null;
+      const dark = rad != null ? (rad < 12 && ctx.sun.alt < 3) : ctx.sun.alt < -2;
+      const light = rad != null ? (rad > 25) : ctx.sun.alt > 0;
+      if (!opt.dusk && dark) opt.dusk = true; else if (opt.dusk && light) opt.dusk = false;
+      const seisNew = ctx.seismic.time && ctx.seismic.time !== lastSeisT && ctx.seismic.time > simT - 600000; if (ctx.seismic.time) lastSeisT = ctx.seismic.time;
+      const x = DATA.channels.map(c => c.x);
+      const o = { remoteIdx, paris: DATA.parisParts(new Date(simT)), dusk: opt.dusk, shutdownWindow: opt.shutdownWindow, seismicI: ctx.seismic.I || 0, seismicNew: seisNew, manualSmoke: opt.manualSmoke, language: opt.language };
+      PROG.tick(simT, x, bits, ctx, o);
+      if (PB) PB.tick(simT, x, bits, ctx, o);
+      opt.manualSmoke = false;
+      record(simT, bits);
+    }
+    const OUT = PROG.sample(simT);
+    if (viewOK) VIEW.frame(OUT, DATA.ctx, S, simT);
+    lastLitA = litCount(OUT);
+    if (PB && VB) { const OB = PB.sample(simT); VB.frame(OB, DATA.ctx, PB.S, simT); lastLitB = litCount(OB); }
+    if (overlayOn) placeOverlay();
+    if (nowp - lastUI > 500) { lastUI = nowp; updateUI(OUT); }
+    teletypeStep();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------------- tabs
+  $$('#tabs button').forEach(b => b.addEventListener('click', () => {
+    $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+    $$('.tab').forEach(t => t.hidden = t.id !== 'tab-' + b.dataset.tab);
+    if (b.dataset.tab === 'analyse') analyse();
+  }));
+  $('#panel-toggle').addEventListener('click', () => { document.body.classList.toggle('panel-closed'); setTimeout(resizeAll, 50); });
+
+  // ---------------- sensors
+  const sensBox = { proche: $('#sens-proche'), lointain: $('#sens-lointain') };
+  const rows = {};
+  DATA.channels.forEach((c, j) => {
+    const r = document.createElement('div'); r.className = 'srow';
+    r.innerHTML = `<div class="sname"><span class="j">x<sub>${j + 1}</sub></span> ${c.fr}<small>${c.en}</small></div>
+      <div class="sval"></div><div class="sbar"><i></i></div><span class="badge"></span>
+      <canvas class="spark" width="120" height="22"></canvas><div class="ssrc">${c.url ? `<a href="${c.url}" target="_blank" rel="noopener">${c.src}</a>` : c.src}<span class="snote"></span></div>`;
+    sensBox[c.grp].appendChild(r); rows[c.id] = r;
+  });
+  const stClass = s => 'badge st-' + s.normalize('NFD').replace(/[^A-Za-z]/g, '');
+  function updateSensors() {
+    DATA.channels.forEach(c => {
+      const r = rows[c.id];
+      r.querySelector('.sval').textContent = c.display;
+      r.querySelector('.sbar i').style.width = (c.x * 100).toFixed(0) + '%';
+      const b = r.querySelector('.badge'); b.textContent = c.status; b.className = stClass(c.status);
+      r.querySelector('.snote').textContent = c.note ? ' — ' + c.note : '';
+      const cv = r.querySelector('.spark'), g = cv.getContext('2d'); g.clearRect(0, 0, 120, 22);
+      const h = c.hist.slice(-120); if (h.length < 2) return;
+      g.strokeStyle = '#d9c7a0'; g.lineWidth = 1; g.beginPath();
+      h.forEach((p, i) => { const x = i / 119 * 120, y = 21 - p[1] * 20; i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
+    });
+  }
+
+  // ---------------- programme
+  const BIT_LABELS = ['bruit 1', 'bruit 2', 'bruit 3', 'bruit 4', 'vent 10 m', 'vent 80 m', 'vent 120 m', 'vent 180 m', 'circul. 1', 'circul. 2'];
+  BIT_LABELS.forEach(l => { const d = document.createElement('div'); d.className = 'bit'; d.innerHTML = `<i></i><span>${l}</span>`; $('#bits').appendChild(d); });
+  const TYPE_COL = { 1: '#9fb3c8', 2: '#f4f1e8', 3: '#e2a03f', 4: '#c77dff', 5: '#ffffff', 6: '#f6d860', 7: '#ff5a4e', 8: '#8a8a8a' };
+  let hoverFn = null;
+  const gcv = $('#groups'), gctx = gcv.getContext('2d'); const GC = 24;
+  gcv.addEventListener('mousemove', e => {
+    const r = gcv.getBoundingClientRect(); const cw = gcv.width / GC; const x = (e.clientX - r.left) * gcv.width / r.width, y = (e.clientY - r.top) * gcv.height / r.height;
+    const k = Math.floor(y / cw) * GC + Math.floor(x / cw); const g = S.groups[k]; hoverFn = g && g.fn >= 0 ? S.fns[g.fn] : null;
+  });
+  gcv.addEventListener('mouseleave', () => hoverFn = null);
+  function updateProgramme() {
+    $('#reg-name').textContent = S.regime.toUpperCase(); $('#reg-name').className = 'reg-' + S.regime;
+    $('#reg-D').textContent = S.D; $('#reg-tau').textContent = S.tau.toFixed(2);
+    $('#reg-seuil').textContent = (PROG.REGIME[S.regime].seuil * 100) + ' %';
+    $('#pq').textContent = `${S.p} fonctions X_i · ${S.q} groupes (${S.centaines.length} centaines × ≤5 classes) · tête de série ${S.head}`;
+    const bits = DATA.ctx.regimeBits; $$('#bits .bit').forEach((d, i) => d.classList.toggle('on', !!bits[i]));
+    const fc = $('#fig1'), f = fc.getContext('2d'); const W = fc.width, H = fc.height; f.clearRect(0, 0, W, H);
+    const hist = S.hist.bits, rowsN = 10, rh = H / rowsN;
+    f.font = '17px IBM Plex Mono, monospace';
+    for (let r = 0; r < rowsN; r++) {
+      const y = r * rh + rh / 2; f.fillStyle = '#8c8577'; f.fillText(BIT_LABELS[r], 4, y + 5);
+      f.strokeStyle = '#4a463e'; f.lineWidth = 1; f.setLineDash([3, 3]); f.beginPath(); f.moveTo(130, y); f.lineTo(W, y); f.stroke(); f.setLineDash([]);
+      f.strokeStyle = '#efe6d2'; f.lineWidth = 6;
+      hist.forEach((b, i) => { if (b[r]) { const x = 130 + i * (W - 130) / 60; f.beginPath(); f.moveTo(x, y); f.lineTo(x + (W - 130) / 60, y); f.stroke(); } });
+    }
+    const cw = gcv.width / GC; gctx.clearRect(0, 0, gcv.width, gcv.height);
+    S.groups.forEach((g, k) => {
+      const x = (k % GC) * cw, y = Math.floor(k / GC) * cw; const fn = g.fn >= 0 ? S.fns[g.fn] : null;
+      gctx.fillStyle = !fn ? '#1d1c19' : fn.X ? TYPE_COL[g.type] : '#3a3730'; gctx.fillRect(x + 1, y + 1, cw - 2, cw - 2);
+      if (fn && hoverFn === fn) { gctx.strokeStyle = '#fff'; gctx.strokeRect(x + 0.5, y + 0.5, cw - 1, cw - 1); }
+    });
+    const act = {}; S.fns.forEach(fn => { if (fn.group && fn.X) act[fn.group.type] = (act[fn.group.type] || 0) + fn.group.organs.length; });
+    $('#types').innerHTML = Object.keys(PROG.TYPE_NAMES).map(t => `<div><i style="background:${TYPE_COL[t]}"></i>${t}) ${PROG.TYPE_NAMES[t]} <b>${act[t] || 0}</b>/${counts[t]}</div>`).join('');
+    const fn = hoverFn || S.lastEval; if (!fn || !fn.group) return;
+    const g = fn.group; const terms = [];
+    for (let j = 0; j < n; j++) if (fn.A[j] > 0) terms.push(`<tr><td>x<sub>${j + 1}</sub></td><td>${DATA.channels[j].fr}</td><td>${fn.A[j].toFixed(2)}</td><td>${DATA.channels[j].x.toFixed(2)}</td></tr>`);
+    $('#insp').innerHTML = `<div class="ih">X<sub>${fn.i}</sub> → centaine ${g.centaine}, classe ${g.cls} · ${PROG.TYPE_NAMES[g.type]} · N<sub>i</sub> = ${g.organs.length}</div>
+      <table><tr><th></th><th>entrée</th><th>A<sub>ij</sub></th><th>x<sub>j</sub></th></tr>${terms.join('')}</table>
+      <div class="ieq">f = Σ A<sub>ij</sub>x<sub>j</sub> = ${(fn.f + fn.K).toFixed(3)} · K = ${fn.K.toFixed(3)} · f − K = <b class="${fn.f > 0 ? 'pos' : 'neg'}">${fn.f >= 0 ? '+' : ''}${fn.f.toFixed(3)}</b></div>
+      <div class="ieq">${fn.passed ? `tirage u = ${fn.u.toFixed(3)} ${fn.u < fn.seuil ? '<' : '≥'} ${fn.seuil} → ` : ''}X<sub>${fn.i}</sub> = <b>${fn.X}</b> · Y<sub>i</sub> = ${fn.Y.toFixed(1)} s · θ<sub>i</sub> = Y/N = ${fn.theta.toFixed(2)} s${fn.lively ? ' · tirage orienté' : ''}</div>
+      ${fn.X ? `<div class="ieq">mode n° ${fn.mode.id} / 50 : <i>${fn.mode.name}</i></div>` : ''}`;
+  }
+
+  // ---------------- abacus
+  function updateAbacus() {
+    const cv = $('#abacus'), g = cv.getContext('2d'), W = cv.width, H = cv.height; g.clearRect(0, 0, W, H);
+    const rods = [['repetition', 'répétition'], ['saturation', 'saturation'], ['stagnation', 'stagnation'], ['accident', 'perturbations accidentelles']];
+    g.strokeStyle = '#6d5a3c'; g.lineWidth = 6; g.strokeRect(6, 6, W - 12, H - 12);
+    rods.forEach(([k, label], r) => {
+      const y = 52 + r * (H - 60) / 4; g.strokeStyle = '#8a7a5c'; g.lineWidth = 2; g.beginPath(); g.moveTo(14, y); g.lineTo(W - 14, y); g.stroke();
+      const v = S.abacus[k]; const tens = Math.floor(v / 10), units = v % 10;
+      for (let b = 0; b < 10; b++) {
+        const right = b < units; const x = right ? W - 40 - b * 28 : 40 + (b - units) * 28;
+        g.fillStyle = right ? (k === 'accident' ? '#c9a24a' : '#d4553f') : '#4a3f30';
+        g.beginPath(); g.ellipse(x, y, 13, 15, 0, 0, Math.PI * 2); g.fill();
+      }
+      g.fillStyle = '#cfc4ad'; g.font = '19px IBM Plex Mono, monospace'; g.fillText(`${label} · ${v}${tens ? ' (dizaines : ' + tens + ')' : ''}`, 22, y - 21);
+    });
+    const ev = S.events.filter(e => /INDIFFÉRENCE|ACCIDENTELLE|DISPARITION|RÉAPPARITION/.test(e.s)).slice(-12).reverse();
+    $('#indiff-log').innerHTML = ev.map(e => `<div><time>${new Date(e.t).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris' })}</time> ${e.s}</div>`).join('') || '<div class="dim">aucune intervention pour l’instant</div>';
+    const ac = $('#actchart'), a = ac.getContext('2d'); a.clearRect(0, 0, ac.width, ac.height);
+    const draw = (h, col) => { a.strokeStyle = col; a.lineWidth = 2; a.beginPath(); h.forEach((v, i) => { const x = i / 239 * ac.width, y = ac.height - v * ac.height; i ? a.lineTo(x, y) : a.moveTo(x, y); }); a.stroke(); };
+    draw(S.hist.act, '#e2a03f'); if (PB) draw(PB.S.hist.act, '#79b8d9');
+    a.fillStyle = '#8c8577'; a.font = '17px IBM Plex Mono, monospace'; a.fillText('part des groupes commandés, X = 1 (20 min)' + (PB ? ' · A orange, B bleu' : ''), 8, 20);
+  }
+
+  // ---------------- schema
+  function updateSchema() {
+    $('#sch-tower').setAttribute('class', 'sch-tower reg-' + S.regime);
+    const recent = e => e && simT - e.t < 6000;
+    const ind = [...S.events].reverse().find(e => /INDIFFÉRENCE/.test(e.s)), acc = [...S.events].reverse().find(e => /ACCIDENTELLE/.test(e.s));
+    $('#sch-ind').classList.toggle('fire', recent(ind)); $('#sch-acc').classList.toggle('fire', recent(acc));
+    $('#sch-cap').textContent = `${DATA.channels.filter(c => LIVE_ST.includes(c.status)).length}/${n}`;
+    $('#sch-env-x').textContent = `τ ${S.tau.toFixed(2)}`; $('#sch-reg').textContent = `D = ${S.D}`;
+  }
+
+  // ---------------- analysis: is the tower still interacting with its environment?
+  const mean = a => a.reduce((s, v) => s + v, 0) / Math.max(1, a.length);
+  const sd = a => { const m = mean(a); return Math.sqrt(mean(a.map(v => (v - m) ** 2))); };
+  function corr(a, b) { const ma = mean(a), mb = mean(b); let c = 0, va = 0, vb = 0; for (let i = 0; i < a.length; i++) { c += (a[i] - ma) * (b[i] - mb); va += (a[i] - ma) ** 2; vb += (b[i] - mb) ** 2; } return va && vb ? c / Math.sqrt(va * vb) : 0; }
+  function r2(Y, Xs) { // ridge-stabilised least squares, R² of output on all inputs
+    const N = Y.length, k = Xs[0].length + 1; if (N < k + 10) return null;
+    const A = Array.from({ length: k }, () => new Float64Array(k)), b = new Float64Array(k);
+    for (let i = 0; i < N; i++) { const row = [1, ...Xs[i]]; for (let p = 0; p < k; p++) { b[p] += row[p] * Y[i]; for (let q = 0; q < k; q++) A[p][q] += row[p] * row[q]; } }
+    for (let p = 1; p < k; p++) A[p][p] += 1e-3 * N;
+    for (let p = 0; p < k; p++) { let mx = p; for (let r = p + 1; r < k; r++) if (Math.abs(A[r][p]) > Math.abs(A[mx][p])) mx = r; [A[p], A[mx]] = [A[mx], A[p]]; [b[p], b[mx]] = [b[mx], b[p]]; const d = A[p][p] || 1e-12; for (let r = p + 1; r < k; r++) { const f = A[r][p] / d; for (let q = p; q < k; q++) A[r][q] -= f * A[p][q]; b[r] -= f * b[p]; } }
+    const w = new Float64Array(k); for (let p = k - 1; p >= 0; p--) { let s = b[p]; for (let q = p + 1; q < k; q++) s -= A[p][q] * w[q]; w[p] = s / (A[p][p] || 1e-12); }
+    const my = mean(Y); let ssr = 0, sst = 0; for (let i = 0; i < N; i++) { const row = [1, ...Xs[i]]; let yh = 0; for (let p = 0; p < k; p++) yh += w[p] * row[p]; ssr += (Y[i] - yh) ** 2; sst += (Y[i] - my) ** 2; }
+    return sst ? 1 - ssr / sst : 0;
+  }
+  function analyse() {
+    const R = REC.rows; const box = $('#ana');
+    $('#rec-count').textContent = `${R.length} relevés (Δt = 5 s) · ${REC.events.length} événements · depuis ${R.length ? new Date(R[0].t).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }) : '—'}`;
+    if (R.length < 60) { box.innerHTML = '<p class="dim">Il faut au moins cinq minutes de relevés. L’analyse se met à jour à l’ouverture de cet onglet.</p>'; return; }
+    const total = tower.organs.filter(o => o.type <= 7).length;
+    const lit = R.map(r => r.lit / total), act = R.map(r => r.act);
+    const X = R.map(r => r.x);
+    const cors = DATA.channels.map((c, j) => ({ c, r: corr(X.map(v => v[j]), lit) })).sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
+    const rD = corr(R.map(r => r.D), lit);
+    const R2 = r2(lit, X), R2a = r2(act, X);
+    const wins = [[12, '1 min'], [60, '5 min'], [360, '30 min'], [1440, '2 h']].filter(([w]) => R.length >= w * 3);
+    const tot = sd(lit);
+    const wrows = wins.map(([w, l]) => { const m = []; for (let i = 0; i + w <= lit.length; i += w) m.push(mean(lit.slice(i, i + w))); return `<tr><td>${l}</td><td>${m.length}</td><td>${(mean(m) * 100).toFixed(1)} %</td><td>${(sd(m) * 100).toFixed(2)}</td><td>${tot ? (sd(m) / tot).toFixed(2) : '—'}</td></tr>`; }).join('');
+    const reg = { bleu: 0, normal: 0, rouge: 0 }; R.forEach(r => reg[r.regime]++);
+    let html = `<h3>Couplage ville → tour</h3>
+      <p>Part de la variation des organes allumés expliquée linéairement par les ${n} entrées : <b>R² = ${R2 == null ? '—' : R2.toFixed(3)}</b> (organes allumés), <b>${R2a == null ? '—' : R2a.toFixed(3)}</b> (fonctions X = 1). Corrélation avec D : <b>${rD.toFixed(3)}</b>.</p>
+      <table class="ana"><tr><th>entrée</th><th>r</th><th></th></tr>${cors.slice(0, 10).map(o => `<tr><td>${o.c.fr}</td><td>${o.r.toFixed(3)}</td><td><i style="width:${Math.abs(o.r) * 100}%;background:${o.r > 0 ? '#8fd18b' : '#d4553f'}"></i></td></tr>`).join('')}</table>
+      <h3>Local / global (Stener Jørgensen & Laplante-Anfossi)</h3>
+      <p>Écart-type des moyennes par fenêtre, rapporté à l’écart-type de la série brute. Un rapport qui tombe vite vers zéro décrit une tour imprévisible de près et semblable à elle-même de loin.</p>
+      <table class="ana"><tr><th>fenêtre</th><th>n</th><th>moyenne</th><th>é.-t. (pts)</th><th>rapport</th></tr>${wrows}</table>
+      <h3>Régimes</h3><p>bleu ${(reg.bleu / R.length * 100).toFixed(0)} % · normal ${(reg.normal / R.length * 100).toFixed(0)} % · rouge ${(reg.rouge / R.length * 100).toFixed(0)} % · interventions de la cellule : ${REC.events.filter(e => /INDIFFÉRENCE/.test(e.s)).length}</p>`;
+    if (R[0].litB != null) {
+      const litB = R.filter(r => r.litB != null).map(r => r.litB / total), XB = R.filter(r => r.litB != null).map(r => r.x);
+      const R2b = r2(litB, XB);
+      html += `<h3>Comparaison A / B</h3><p>R² A = ${R2 == null ? '—' : R2.toFixed(3)} · R² B = ${R2b == null ? '—' : R2b.toFixed(3)} · corrélation A↔B = ${corr(lit.slice(-litB.length), litB).toFixed(3)} · moyenne allumée A ${(mean(lit) * 100).toFixed(1)} %, B ${(mean(litB) * 100).toFixed(1)} %</p>`;
+    }
+    box.innerHTML = html;
+  }
+  function csv() {
+    const head = ['temps_iso', 'heure_paris', 'source', 'regime', 'D', 'tau', 'part_X1', 'organes_allumes', 'capteurs_10', 'X_fonctions', ...DATA.channels.map((c, j) => `x${j + 1}_${c.id}`), ...DATA.channels.map(c => `etat_${c.id}`)];
+    const hasB = REC.rows.some(r => r.litB != null); if (hasB) head.push('B_part_X1', 'B_organes_allumes', 'B_X_fonctions');
+    const lines = [head.join(',')];
+    REC.rows.forEach(r => { const l = [new Date(r.t).toISOString(), new Date(r.t).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris' }), r.mode, r.regime, r.D, r.tau.toFixed(4), r.act.toFixed(4), r.lit, "'" + r.bits, "'" + r.X, ...r.x.map(v => v.toFixed(4)), ...r.st]; if (hasB) l.push(r.actB != null ? r.actB.toFixed(4) : '', r.litB != null ? r.litB : '', r.XB ? "'" + r.XB : ''); lines.push(l.join(',')); });
+    return lines.join('\n');
+  }
+  function csvEvents() { return ['temps_iso,programme,evenement', ...REC.events.map(e => `${new Date(e.t).toISOString()},${e.prog},"${e.s.replace(/"/g, '""')}"`)].join('\n'); }
+  function download(name, text) {
+    try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
+    catch (e) { $('#rec-msg').textContent = 'Téléchargement impossible ici ; utilisez « copier ».'; }
+  }
+  const stamp = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  $('#rec-dl').addEventListener('click', () => download(`tlc-releves-${stamp()}.csv`, csv()));
+  $('#rec-dl-ev').addEventListener('click', () => download(`tlc-evenements-${stamp()}.csv`, csvEvents()));
+  $('#rec-copy').addEventListener('click', async () => { try { await navigator.clipboard.writeText(csv()); $('#rec-msg').textContent = 'Copié.'; } catch (e) { $('#rec-msg').textContent = 'Copie refusée par le navigateur.'; } });
+  $('#rec-clear').addEventListener('click', () => { REC.rows = []; REC.events = []; analyse(); });
+  $('#ana-run').addEventListener('click', analyse);
+
+  // ---------------- comparison
+  const CRIT = [
+    ['Kmin', 'K : borne basse de κ', 'number', 0.05], ['Kspan', 'K : étendue de κ', 'number', 0.05], ['onScale', 'durée moyenne allumée ×', 'number', 0.1],
+    ['meanOff', 'durée moyenne au repos (s)', 'number', 1], ['pq', 'part des groupes commandés p/q', 'number', 0.02], ['reassign', 'réaffectation (s)', 'number', 30],
+    ['sMin', 'entrées par fonction (min)', 'number', 1], ['sMax', 'entrées par fonction (max)', 'number', 1],
+    ['law', 'loi des durées Y', ['gamma', 'uniforme', 'exponentielle']], ['capMode', '60/75/90 % lus comme', ['intensité', 'proportion']]
+  ];
+  function critForm(id, P) {
+    $(id).innerHTML = CRIT.map(([k, l, t, step]) => `<label>${l}</label>` + (Array.isArray(t) ? `<select data-k="${k}">${t.map(v => `<option${P.CR[k] === v ? ' selected' : ''}>${v}</option>`).join('')}</select>` : `<input type="number" data-k="${k}" step="${step}" value="${P.CR[k]}">`)).join('');
+  }
+  function readForm(id) { const o = {}; $$(id + ' [data-k]').forEach(el => o[el.dataset.k] = el.tagName === 'SELECT' ? el.value : +el.value); return o; }
+  critForm('#critA', PROG);
+  const PRESETS = {
+    proportion: { capMode: 'proportion', label: 'B' }, uniforme: { law: 'uniforme' }, sobre: { sMin: 1, sMax: 2 },
+    vive: { reassign: 60, onScale: 0.5, meanOff: 5 }, lente: { reassign: 1200, onScale: 2.5, meanOff: 30 }, ouverte: { pq: 0.95, Kmin: 0.4 }
+  };
+  function startCompare(critB) {
+    if (!PB) {
+      PB = makeProg(Object.assign({ label: 'B' }, critB)); PB.init(tower, n);
+      document.body.classList.add('compare');
+      try { VB = makeView(VIEW.cam, { driver: false }); VB.init($('#viewB'), tower); } catch (e) { VB = null; }
+      resizeAll();
+    } else { PB.setCriteria(critB); PB.init(tower, n); }
+    critForm('#critB', PB); $('#cmp-stop').disabled = false;
+    $('#labelB-text').textContent = 'B — ' + Object.entries(PB.CR).filter(([k, v]) => !['label', 'quiet'].includes(k) && v !== ({ Kmin: 0.6, Kspan: 0.35, onScale: 1, meanOff: 10, pq: 0.72, reassign: 300, law: 'gamma', sMin: 3, sMax: 7, capMode: 'intensité' })[k]).map(([k, v]) => `${k} ${v}`).join(' · ');
+  }
+  $('#cmp-start').addEventListener('click', () => startCompare(PB ? readForm('#critB') : {}));
+  $$('#cmp-presets button').forEach(b => b.addEventListener('click', () => startCompare(Object.assign(readFormSafe(), PRESETS[b.dataset.p]))));
+  function readFormSafe() { return PB ? readForm('#critB') : Object.assign({}, PROG.CR, { label: 'B' }); }
+  $('#critA-apply').addEventListener('click', () => { PROG.setCriteria(readForm('#critA')); PROG.init(tower, n); });
+  $('#cmp-stop').addEventListener('click', () => { if (VB) VB.dispose(); VB = null; PB = null; document.body.classList.remove('compare'); $('#cmp-stop').disabled = true; $('#critB').innerHTML = ''; resizeAll(); });
+  function resizeAll() { VIEW.resize(); if (VB) VB.resize(); }
+  window.addEventListener('resize', resizeAll);
+
+  // ---------------- archives (replay)
+  const yest = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  $('#rp-day').value = yest; $('#rp-day').max = yest;
+  $('#rp-go').addEventListener('click', async () => {
+    const day = $('#rp-day').value; if (!day) return;
+    $('#rp-msg').textContent = 'Chargement des archives…';
+    try {
+      const r = await DATA.loadReplay(day);
+      simT = r.t0 + (+$('#rp-hour').value) * 3600000; lastTick = -1e12;
+      opt.speed = +$('#rp-speed').value; $('#speed').value = String(opt.speed);
+      $('#rp-msg').textContent = `Archives du ${day} chargées.` + (r.notes.length ? ' Lacunes : ' + r.notes.join(' ; ') : '') + ' Les lignes sans archive (téléphones, radio, presse, Bourse, Métro, Vélib’, Chambre, pompiers) passent en simulation.';
+      $('#rp-stop').disabled = false;
+    } catch (e) { $('#rp-msg').textContent = 'Échec : ' + e.message; }
+  });
+  $('#rp-stop').addEventListener('click', () => { DATA.stopReplay(); simT = Date.now(); opt.speed = 1; $('#speed').value = '1'; $('#rp-stop').disabled = true; $('#rp-msg').textContent = 'Retour au direct.'; });
+
+  // ---------------- documents
+  const DOCS = [
+    ['p86', 'Tour Lumière Cybernétique : maquette', 86], ['p87', 'Vue d’ensemble 1 (rendu de nuit)', 87], ['p89', 'Vue d’ensemble 2', 89], ['p91', 'La T.L.C. et la perspective de la Défense (maquettes de situation)', 91],
+    ['p132', 'Façade et circulation verticale (façade 2, section 6)', 132], ['p131', 'Coupe générale ; plan du parking et sous-sol du socle', 131], ['p133', 'Plan de situation', 133],
+    ['p98', 'Schéma du centre de contrôle et de régulation d’une ville cybernétique', 98], ['p99', 'Schéma théorique du fonctionnement de la T.L.C.', 99],
+    ['p107', 'Salle des ordinateurs', 107], ['p116', 'Figure 1 : états des capteurs de bruit et de vent', 116], ['p121', 'Organigramme de principe', 121], ['p123', 'Description des six fenêtres simulées', 123]
+  ];
+  $('#docs').innerHTML = DOCS.map(([f, t, p]) => `<figure data-f="${f}"><img src="img/${f}.jpg" alt="${t}" loading="lazy" onerror="this.parentNode.classList.add('missing')"><figcaption>${t} <span class="dim">p. ${p}</span></figcaption></figure>`).join('');
+  $$('#docs figure').forEach(fg => fg.addEventListener('click', () => { const [f, t, p] = DOCS.find(d => d[0] === fg.dataset.f); $('#lb-img').src = `img/${f}.jpg`; $('#lb-cap').textContent = `${t} — Schöffer, La Tour Lumière Cybernétique, 1973, p. ${p}. © ADAGP, Paris.`; $('#lightbox').hidden = false; }));
+  $('#lightbox').addEventListener('click', () => $('#lightbox').hidden = true);
+  // overlay of façade 2 (p. 132) on the rendered tower
+  let overlayOn = false; const ov = $('#overlay-facade');
+  $('#ov-toggle').addEventListener('click', () => { overlayOn = !overlayOn; ov.hidden = !overlayOn; if (overlayOn) { VIEW.preset('facade'); VIEW.cam.auto = false; } $('#ov-toggle').textContent = overlayOn ? 'retirer le dessin' : 'superposer la façade 2 (p. 132)'; });
+  $('#ov-opacity').addEventListener('input', e => ov.style.opacity = e.target.value);
+  function placeOverlay() {
+    // drawing rows: level 0 at 1771.5 px, level 307 m at 70.8 px, core axis at 257.3 px (image 515 × 1929)
+    const p0 = VIEW.project(0, 0, 0), p1 = VIEW.project(0, 307, 0);
+    const k = (p0.y - p1.y) / (1771.5 - 70.8);
+    ov.style.height = (1929 * k) + 'px'; ov.style.width = (515 * k) + 'px';
+    ov.style.left = (p0.x - 257.3 * k) + 'px'; ov.style.top = (p0.y - 1771.5 * k) + 'px';
+  }
+
+  // ---------------- teletype
+  let ttQueue = [], ttLine = null, ttShown = 0, lastLog = 0; const tt = $('#teletype');
+  function teletypeStep() {
+    DATA.log.forEach(l => { if (l.t > lastLog) ttQueue.push(l); }); if (DATA.log.length) lastLog = DATA.log[DATA.log.length - 1].t;
+    if (!ttLine && ttQueue.length) {
+      const l = ttQueue.shift(); ttLine = document.createElement('div');
+      ttLine.dataset.full = `${new Date(l.t).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris' })}  ${l.s.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()}`; ttShown = 0; tt.appendChild(ttLine);
+      while (tt.children.length > 160) tt.removeChild(tt.firstChild);
+    }
+    if (ttLine) { ttShown = Math.min(ttLine.dataset.full.length, ttShown + (ttQueue.length > 8 ? 12 : 3)); ttLine.textContent = ttLine.dataset.full.slice(0, ttShown); if (ttShown >= ttLine.dataset.full.length) ttLine = null; tt.scrollTop = tt.scrollHeight; }
+  }
+
+  // ---------------- HUD
+  function updateUI(OUT) {
+    $('#clock').textContent = new Date(simT).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long', year: DATA.REPLAY.active ? 'numeric' : undefined, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const m = DATA.REPLAY.active ? 'archive' : DATA.mode;
+    $('#mode').textContent = DATA.REPLAY.active ? 'ARCHIVES ' + DATA.REPLAY.day : DATA.mode === 'live' ? 'DONNÉES RÉELLES' : 'SIMULATION'; $('#mode').className = 'mode-' + m;
+    $('#hud-reg').textContent = S.regime; $('#hud-reg').className = 'chip reg-' + S.regime; $('#hud-D').textContent = S.D;
+    $('#hud-lit').textContent = lastLitA.toLocaleString('fr-FR'); $('#hud-spin').textContent = Array.from(OUT.axisSpeed).filter(v => Math.abs(v) > 0.01).length;
+    let st = S.vanish ? 'disparue dans la fumée' : S.shutdown ? 'extinction nocturne' : S.special ? (S.special.kind === 'meteo' ? 'langage conventionnel : météo' : 'langage conventionnel : circulation') : opt.dusk ? 'nuit — tous les paramètres jouent' : 'jour — gros projecteurs et lasers débranchés';
+    if (S.antagonist) st += ` · flashes antagonistes (${S.antagonist.kind})`; $('#hud-state').textContent = st;
+    if (PB) $('#labelB-stats').textContent = `${lastLitB.toLocaleString('fr-FR')} allumés`;
+    $('#labelA-stats').textContent = `${lastLitA.toLocaleString('fr-FR')} allumés`;
+    if (!$('#tab-capteurs').hidden) updateSensors(); if (!$('#tab-programme').hidden) updateProgramme(); if (!$('#tab-indifference').hidden) updateAbacus(); if (!$('#tab-schema').hidden) updateSchema();
+    if (!$('#tab-analyse').hidden) $('#rec-count').textContent = `${REC.rows.length} relevés · ${REC.events.length} événements`;
+    $('#live-count').textContent = `${DATA.channels.filter(c => LIVE_ST.includes(c.status)).length} / ${n} lignes réelles`;
+  }
+
+  // ---------------- settings
+  $('#av-key').value = DATA.cfg.avKey; $('#av-sym').value = DATA.cfg.avSymbol; $('#prim-key').value = DATA.cfg.primKey;
+  $('#keys-save').addEventListener('click', () => {
+    DATA.cfg.avKey = $('#av-key').value.trim(); DATA.cfg.avSymbol = $('#av-sym').value.trim() || 'EWQ'; DATA.cfg.primKey = $('#prim-key').value.trim();
+    store.set('avKey', DATA.cfg.avKey); store.set('avSymbol', DATA.cfg.avSymbol); store.set('primKey', DATA.cfg.primKey);
+    if (DATA.mode === 'live') DATA.refreshKeys(); $('#keys-msg').textContent = 'Enregistré dans ce navigateur.';
+  });
+  $$('input[name=shut]').forEach(r => { r.checked = r.value === opt.shutdownWindow.join('-'); r.addEventListener('change', () => { opt.shutdownWindow = r.value.split('-').map(Number); store.set('shutdown', opt.shutdownWindow); }); });
+  $('#speed').addEventListener('change', e => { opt.speed = +e.target.value; });
+  $('#lang').checked = opt.language; $('#lang').addEventListener('change', e => { opt.language = e.target.checked; store.set('language', opt.language); });
+  $('#btn-smoke').addEventListener('click', () => { opt.manualSmoke = true; });
+  $('#btn-reassign').addEventListener('click', () => PROG.reassign(simT, 'commande manuelle'));
+  $('#btn-now').addEventListener('click', () => { if (!DATA.REPLAY.active) simT = Date.now(); });
+  $('#mic').addEventListener('change', e => { if (e.target.checked) DATA.startMic(); else DATA.stopMic(); });
+  $('#radio').addEventListener('change', e => { DATA.cfg.radio = e.target.checked; if (e.target.checked) DATA.startAudio(); else ['inter', 'info'].forEach(k => { const r = DATA.ctx.radio[k]; if (r) r.el.pause(); }); });
+  $$('#views button[data-v]').forEach(b => b.addEventListener('click', () => VIEW.preset(b.dataset.v)));
+  $('#autorot').addEventListener('click', () => { VIEW.cam.auto = !VIEW.cam.auto; });
+
+  // ---------------- start
+  $('#start').addEventListener('click', async () => {
+    $('#overlay').classList.add('going');
+    DATA.cfg.radio = $('#start-radio').checked; $('#radio').checked = DATA.cfg.radio;
+    DATA.cfg.mic = $('#start-mic').checked; $('#mic').checked = DATA.cfg.mic;
+    const m = await DATA.start(); started = true; $('#overlay').hidden = true;
+    if (m === 'sim') $('#simnote').hidden = false;
+  });
+  $('#simnote-close').addEventListener('click', () => $('#simnote').hidden = true);
+  window.TLC = { REC, analyse, get PB() { return PB; } };
+  requestAnimationFrame(loop);
+})();
