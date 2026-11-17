@@ -8,7 +8,7 @@
    ========================================================================== */
 const DATA = (function () {
   'use strict';
-  const SITE = { lat: 48.8948, lon: 2.2245, name: 'Nanterre, La Folie — environ 1 km à l’ouest du C.N.I.T. (pp. 14–15, 70, 133, 135)' };
+  const SITE = { lat: 48.8974, lon: 2.2229, name: 'Nanterre, La Folie — environ 1 km à l’ouest du C.N.I.T. (pp. 14–15, 70, 133, 135)' };
   const CDG = { lat: 49.0097, lon: 2.5479 };
   const PARIS = { lat: 48.8530, lon: 2.3499 };
   const cfg = { avKey: '', avSymbol: 'EWQ', primKey: '', mic: false, radio: true };

@@ -109,9 +109,9 @@ table.ana i{display:block;height:6px}
 #minimap{position:fixed;right:420px;bottom:16px;width:280px;z-index:3;contain:paint;isolation:isolate;overflow:hidden;border:1px solid var(--line);background:#0d0c0a}
 body.panel-closed #minimap{right:16px}
 #mm{width:100%;height:210px;background:#1a1916}#minimap.min #mm,#minimap.min #mm-cap{display:none}
-.mmbar{display:flex;flex-wrap:wrap;gap:2px;padding:3px;align-items:center}.mmbar button{background:none;border:1px solid var(--line);color:var(--dim);font:inherit;font-size:10px;padding:2px 6px;cursor:pointer}.mmbar button.on{color:var(--paper);border-color:var(--ochre)}
+.mmbar{display:flex;flex-wrap:wrap;gap:2px;padding:3px;align-items:center}.mmbar button{background:none;border:1px solid var(--line);color:var(--dim);font:inherit;font-size:10px;padding:2px 6px;cursor:pointer}.mmbar button.on{color:var(--paper);border-color:var(--ochre)}.mmbar button:focus{outline:none}.mmbar button:focus-visible{outline:1px dotted var(--ochre)}
 .mmbar span{flex:1 1 100%;font-size:10px;color:var(--dim);padding-left:4px}
-#mm-3d{color:var(--ochre)!important;border-color:var(--ochre)!important;font-weight:500}#mm-cap{font-size:10px;color:#cbbf9f;padding:2px 6px 4px}
+#mm-cap{font-size:10px;color:#cbbf9f;padding:2px 6px 4px}
 #minimap .leaflet-control-attribution{font-size:8px;background:rgba(0,0,0,.5);color:#aaa}#minimap .leaflet-control-attribution a{color:#ccc}
 #pick{position:fixed;left:16px;top:170px;width:370px;max-height:calc(100vh - 260px);overflow:auto;z-index:6;background:rgba(13,12,10,.93);border:1px solid var(--ochre);font-size:11px;line-height:1.45}
 .pk-bar{display:flex;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#0d0c0a}.pk-bar span{flex:1;font-family:var(--serif);font-size:16px}
@@ -127,7 +127,7 @@ body.panel-closed #m3d{right:16px}
 #mm3d-slot{display:none;height:210px}#minimap.is3d #mm3d-slot{display:flex}#minimap.is3d #mm{display:none}#mm3d-slot #m3d-map{height:210px}
 #minimap.min #mm3d-slot{display:none!important}
 #mm3d-slot .maplibregl-ctrl-top-right{display:none}#mm3d-slot .maplibregl-ctrl-attrib{font-size:8px;background:rgba(0,0,0,.45)!important;color:#bbb;padding:0 3px;min-height:0}#mm3d-slot .maplibregl-ctrl-attrib a{color:#ccc}#mm3d-slot .maplibregl-ctrl-attrib-button{display:none}
-#mm-3d.on{background:var(--ochre)!important;color:var(--ink)!important}#m3d-info{font-size:11px;padding:6px 8px;color:#cbbf9f}#m3d-info b{color:var(--paper);font-weight:500}
+#m3d-info{font-size:11px;padding:6px 8px;color:#cbbf9f}#m3d-info b{color:var(--paper);font-weight:500}
 #m3d-tip{position:absolute;pointer-events:none;background:rgba(13,12,10,.9);border:1px solid var(--line);padding:3px 6px;font-size:11px;z-index:13}
 #m3d-map{}#m3d .maplibregl-ctrl-attrib{font-size:9px}
 @media (max-width:900px){#m3d{right:8px;left:8px}}
@@ -251,7 +251,7 @@ body.panel-closed #m3d{right:16px}
     <h3>The form of the tower</h3>
     <p>The structure is traced from the sheet <i>Façade et circulation verticale</i> (p. 132). Read against Annex 7, the drawing yields a scale of about 0.23 m to the unit: its five platforms fall at 91, 142, 231, 267 and 300 m, where the structural calculation places them at 92, 144, 236, 272 and 307 m. The core measures some 36 m on façade 2 and 23 m on section 6; the cantilevered arms come in pairs, and it is between these pairs that the first vertical axes are set, which is how the night renderings (pp. 87, 89) show the mirrors. A wider frame encloses the lower 76 m, and the socle is an inverted trapezoid, 70 m at the slab. The sheet shows only the arms lying in its two planes; the rest of the two hundred named on p. 26 are placed within the envelope those arms define. The maquette photographed on p. 86 belongs to an earlier, denser state of the project and has not been followed. The façade can be laid over the rendering from the Documents tab.</p>
     <h3>The site</h3>
-    <p>The first maquette (1963) placed the tower directly in front of the C.N.I.T., on the axis of the voie triomphale (p. 14). The E.P.A.D. excluded zone A, and after an interval on R.A.T.P. ground two kilometres to the west, the project settled about one kilometre west of the C.N.I.T., facing the museum Le Corbusier was to build, on ground at 52 m, against the S.N.C.F. land at La Folie, between the A14 and the Saint-Germain branch of the R.E.R. (pp. 14–15, 70; plans pp. 133, 135). The tower is placed there, at roughly 48.8948° N, 2.2245° E, to within a hundred metres or so: the published plans carry no coordinates and the road layout has since changed. The map defaults to the I.G.N. aerial survey of 1965–1980, which shows the ground as it stood when the site was chosen.</p>
+    <p>The first maquette (1963) placed the tower directly in front of the C.N.I.T., on the axis of the voie triomphale (p. 14). The E.P.A.D. excluded zone A, and after an interval on R.A.T.P. ground two kilometres to the west, the project settled about one kilometre west of the C.N.I.T., facing the museum Le Corbusier was to build, on ground at 52 m, against the S.N.C.F. land at La Folie, between the A14 and the Saint-Germain branch of the R.E.R. (pp. 14–15, 70; plans pp. 133, 135). The plot on p. 135 is fixed by three features: the edge of the S.N.C.F. yards at La Folie to the north, the C.D. 131 at its western end, and the R.E.R. cutting to the south. Laid against the I.G.N. aerial survey of 1965–1980, where the yards and the R.E.R. works are visible, these place the socle at roughly 48.8974° N, 2.2229° E, about 130 m east of the point where the C.D. 131 meets the railway land, with zone A a kilometre to the east as p. 70 has it. The result depends on reading the C.D. 131 correctly in the photograph and should be taken as good to a hundred and fifty metres or so; the plan carries no scale or coordinates, and its “station M” on the Saint-Germain branch does not correspond to any station built. The map defaults to the I.G.N. aerial survey of 1965–1980, which shows the ground as it stood when the site was chosen.</p>
     <h3>Light, beams and reflections</h3>
     <p>The published images, the night renderings of pp. 87 and 89 and the covers of <i>Paris Match</i>, make the tower a fountain of searchlight beams. The inventory points elsewhere. The 2,250 spotlights are of medium power and carry coloured devices (p. 26), and Annex 2 places the projectors and flashes in 343 cabinets set in the windows of the structure, “destinées à éclairer les miroirs” (p. 122): the greater part of the light was to be thrown inward, onto the 263 rotating mirrors, and returned by them as moving coloured reflections, in the manner of Schöffer’s luminodynamic work. The 2,085 flashes burst in every direction. Only sixty-four sources form beams, the forty marine projectors with a throw of two kilometres, some set at the summit “pour prolonger la hauteur de la Tour la nuit” (p. 27), and the twenty-four lasers whose rays the mirrors were to multiply; all sixty-four were disconnected by day (p. 100), and their beams would have been visible along their length only in haze. The rendering here shares the renderings’ bias: projectors are drawn as points of light, not aimed at the mirrors, and the bloom lends the forty beams more weight than the inventory gives them.</p>
     <h3>The mirrors and the wind</h3>
@@ -319,11 +319,11 @@ body.panel-closed #m3d{right:16px}
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-<script src="js/tower.js?v=1794952866"></script>
-<script src="js/data.js?v=1794952866"></script>
-<script src="js/program.js?v=1794952866"></script>
-<script src="js/render.js?v=1794952866"></script>
-<script src="js/map3d.js?v=1794952866"></script>
-<script src="js/ui.js?v=1794952866"></script>
+<script src="js/tower.js?v=1794953513"></script>
+<script src="js/data.js?v=1794953513"></script>
+<script src="js/program.js?v=1794953513"></script>
+<script src="js/render.js?v=1794953513"></script>
+<script src="js/map3d.js?v=1794953513"></script>
+<script src="js/ui.js?v=1794953513"></script>
 </body>
 </html>

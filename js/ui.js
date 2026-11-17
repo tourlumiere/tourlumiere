@@ -381,7 +381,7 @@
 
 
   // ---------------- situation map: where the tower would have stood, and where we are looking from
-  let MM = null;
+  let MM = null, MM_mark = () => { }, MM_cur = () => 'ign';
   function initMap() {
     if (typeof L === 'undefined') { $('#minimap').hidden = true; return; }
     const site = [DATA.SITE.lat, DATA.SITE.lon];
@@ -392,7 +392,14 @@
       ign: L.tileLayer('https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS.1965-1980&STYLE=BDORTHOHISTORIQUE&TILEMATRIXSET=PM_3_18&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/png', { maxZoom: 18, attribution: 'IGN, photographies aériennes 1965–1980' })
     };
     let cur = store.get('mmLayer', 'ign'); layers[cur].addTo(map);
-    $$('#minimap [data-l]').forEach(b => { b.classList.toggle('on', b.dataset.l === cur); b.addEventListener('click', () => { map.removeLayer(layers[cur]); cur = b.dataset.l; layers[cur].addTo(map); store.set('mmLayer', cur); $$('#minimap [data-l]').forEach(x => x.classList.toggle('on', x === b)); }); });
+    // four mutually exclusive modes: 1965–80, plan, satellite, 3D
+    const mark = k => $$('#minimap .mmbar [data-l], #mm-3d').forEach(x => x.classList.toggle('on', (x.dataset.l || '3d') === k));
+    $$('#minimap [data-l]').forEach(b => b.addEventListener('click', () => {
+      if (MAP3D.isSmall()) { MAP3D.close(); setTimeout(() => map.invalidateSize(), 50); }
+      map.removeLayer(layers[cur]); cur = b.dataset.l; layers[cur].addTo(map); store.set('mmLayer', cur); mark(cur);
+    }));
+    mark(cur);
+    MM_mark = mark; MM_cur = () => cur;
     $('#mm-min').addEventListener('click', () => { $('#minimap').classList.toggle('min'); setTimeout(() => map.invalidateSize(), 50); });
     const m2ll = (e, nn) => [site[0] + nn / 111320, site[1] + e / (111320 * Math.cos(site[0] * Math.PI / 180))];
     const sq = (hx, hz) => [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]].map(([e, s]) => m2ll(e, -s));
@@ -419,10 +426,10 @@
     $('#mm-cap').textContent = `regard vers ${Math.round(((bearing * 180 / Math.PI) % 360 + 360) % 360)}° · ${Math.round(flat)} m du pied`;
   }
   try { initMap(); } catch (e) { $('#minimap').hidden = true; }
-  $('#mm-3d').addEventListener('click', () => { if (MAP3D.isSmall()) { MAP3D.close(); $('#mm-3d').classList.remove('on'); setTimeout(() => MM && MM.map.invalidateSize(), 50); } else { MAP3D.open(tower, 'small'); $('#mm-3d').classList.add('on'); } });
-  $('#mm-big').addEventListener('click', () => { MAP3D.open(tower, 'large'); $('#mm-3d').classList.remove('on'); });
-  $('#m3d-shrink').addEventListener('click', () => { MAP3D.shrink(); $('#mm-3d').classList.add('on'); });
-  $('#m3d-close').addEventListener('click', () => { MAP3D.close(); $('#mm-3d').classList.remove('on'); setTimeout(() => MM && MM.map.invalidateSize(), 50); });
+  $('#mm-3d').addEventListener('click', () => { if (!MAP3D.isSmall()) { MAP3D.open(tower, 'small'); MM_mark('3d'); } });
+  $('#mm-big').addEventListener('click', () => { MAP3D.open(tower, 'large'); MM_mark(MM_cur()); });
+  $('#m3d-shrink').addEventListener('click', () => { MAP3D.shrink(); MM_mark('3d'); });
+  $('#m3d-close').addEventListener('click', () => { MAP3D.close(); MM_mark(MM_cur()); setTimeout(() => MM && MM.map.invalidateSize(), 50); });
   $('#m3d-sat').addEventListener('click', () => MAP3D.toggleSat());
   $('#m3d-follow').addEventListener('change', e => MAP3D.setFollow(e.target.checked));
   setInterval(() => MAP3D.sync(), 120);

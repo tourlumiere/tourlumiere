@@ -64,11 +64,11 @@ function makeView(sharedCam, opts) {
     // a few 1970s towers of La Défense, and the CNIT vault
     const bmat = new THREE.MeshLambertMaterial({ color: 0x2a2e36 });
     // zone A of La Défense, about 1 km to the east (p. 70): a few towers of the 1970s
-    [[900, 120, 75, 30], [960, -60, 90, 32], [1040, 160, 82, 28], [1120, 40, 70, 34], [1180, -140, 95, 30], [1250, 90, 60, 26], [1320, -40, 88, 30], [980, 260, 55, 28], [1400, 150, 70, 24]].forEach(([x, z, h, w]) => {
+    [[1050, 370, 75, 30], [1110, 190, 90, 32], [1190, 410, 82, 28], [1270, 290, 70, 34], [1330, 110, 95, 30], [1400, 340, 60, 26], [1470, 210, 88, 30], [1130, 510, 55, 28], [1550, 400, 70, 24]].forEach(([x, z, h, w]) => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(w, h * 2.2, w * 0.6), bmat); m.position.set(x, GROUND + h * 1.1, z); scene.add(m);
     });
     const cnit = new THREE.Mesh(new THREE.SphereGeometry(120, 3, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x5a5f66 }));
-    cnit.scale.set(1, 0.38, 1); cnit.rotation.y = Math.PI / 6; cnit.position.set(1000, GROUND, 40); scene.add(cnit); // C.N.I.T., ~1 km east
+    cnit.scale.set(1, 0.38, 1); cnit.rotation.y = Math.PI / 6; cnit.position.set(1150, GROUND, 290); scene.add(cnit); // C.N.I.T., ~1.2 km east-south-east
 
     // ----- socle (70 m × 70 m slab, trapezoidal)
     // socle as drawn on p. 132: an inverted trapezoid, 70 m at the slab, about 40 m at the ground, 26 m high
