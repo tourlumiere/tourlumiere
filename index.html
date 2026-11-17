@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tour Lumière Cybernétique — prototype en données réelles</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{--ink:#0d0c0a;--ink2:#171512;--line:#2e2a24;--paper:#efe6d2;--dim:#8c8577;--ochre:#e2a03f;--red:#d4553f;--blue:#5b7cff;--mono:'IBM Plex Mono',ui-monospace,monospace;--serif:'EB Garamond',Garamond,serif}
@@ -27,7 +28,7 @@ body.panel-closed #hud{right:16px}
 #views{position:fixed;left:16px;bottom:14px;display:flex;gap:4px;flex-wrap:wrap;max-width:60%}
 #views button,#autorot,.btn{background:rgba(20,18,15,.75);color:var(--paper);border:1px solid var(--line);font:inherit;font-size:11px;padding:4px 8px;cursor:pointer}
 #views button:hover,.btn:hover,#autorot:hover{border-color:var(--ochre)}
-#legend{position:fixed;left:16px;bottom:44px;font-size:10px;color:var(--dim);display:flex;gap:10px;flex-wrap:wrap}
+#legend{position:fixed;left:16px;bottom:44px;max-width:calc(100% - 760px);font-size:10px;color:var(--dim);display:flex;gap:10px;flex-wrap:wrap}
 #legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:-1px}
 #panel{position:fixed;top:0;right:0;bottom:0;width:404px;background:rgba(13,12,10,.92);border-left:1px solid var(--line);display:flex;flex-direction:column;backdrop-filter:blur(6px)}
 body.panel-closed #panel{transform:translateX(100%)}
@@ -104,6 +105,13 @@ table.ana i{display:block;height:6px}
 .crit{display:grid;grid-template-columns:1fr 1fr;gap:2px 10px}.crit label{margin:4px 0 0}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 #cmp-presets button{margin:2px}
+#minimap{position:fixed;right:420px;bottom:16px;width:280px;z-index:3;contain:paint;isolation:isolate;overflow:hidden;border:1px solid var(--line);background:#0d0c0a}
+body.panel-closed #minimap{right:16px}
+#mm{width:100%;height:210px;background:#1a1916}#minimap.min #mm,#minimap.min #mm-cap{display:none}
+.mmbar{display:flex;gap:2px;padding:3px;align-items:center}.mmbar button{background:none;border:1px solid var(--line);color:var(--dim);font:inherit;font-size:10px;padding:2px 6px;cursor:pointer}.mmbar button.on{color:var(--paper);border-color:var(--ochre)}
+.mmbar span{flex:1;font-size:10px;color:var(--dim);padding-left:4px}#mm-cap{font-size:10px;color:#cbbf9f;padding:2px 6px 4px}
+#minimap .leaflet-control-attribution{font-size:8px;background:rgba(0,0,0,.5);color:#aaa}#minimap .leaflet-control-attribution a{color:#ccc}
+@media (max-width:900px){#minimap{right:12px;bottom:auto;top:12px;width:200px}#mm{height:140px}}
 @media (max-width:900px){#panel{width:100%;top:45%}#panel-toggle{right:12px;top:auto;bottom:56%}#hud{right:16px}#hud h1{font-size:20px}}
 </style>
 </head>
@@ -114,7 +122,7 @@ table.ana i{display:block;height:6px}
 
 <div id="hud">
   <h1>Tour Lumière Cybernétique</h1>
-  <div class="sub">Nicolas Schöffer, La Défense, 1962–1973 · prototype en données réelles</div>
+  <div class="sub">Nicolas Schöffer, La Défense (Nanterre, La Folie), 1962–1973 · prototype en données réelles</div>
   <div class="row"><span id="clock"></span><span id="mode">—</span><span id="live-count" class="k"></span></div>
   <div class="row"><span class="k">régime</span><span id="hud-reg" class="chip reg-normal">—</span><span class="k">D =</span><b id="hud-D">—</b>
     <span class="k">organes allumés</span><b id="hud-lit">0</b><span class="k">/ <span id="count-total"></span> paramètres d’action ·</span><span class="k">axes tournants</span><b id="hud-spin">0</b><span class="k">/ 114</span></div>
@@ -222,6 +230,10 @@ table.ana i{display:block;height:6px}
     <p>Schöffer gives the Tour Lumière Cybernétique two programmes, and they do not quite coincide. The <i>Programme du calculateur</i> (Appendix 5, pp. 108–111) states the general case: Boolean functions X<sub>i</sub> of the normalised inputs, organs dealt by lot into groups, and, for each function that fires, a random duration Y<sub>i</sub> and a randomly drawn mode of operation. The <i>Simulation du fonctionnement</i> (Appendix 6, pp. 112–124), run in Fortran IV on a CDC 6400, reduces the tower to six windows and thirty-three outputs, and supplies what the general programme lacks, namely the coefficient of excitation D computed over ten binary sensors and the three régimes it selects. The prototype runs both together. The régime of the simulation governs colour, intensity and the validating draw; the general programme decides which organs are commanded, for how long and in what order, across the full inventory of the 1973 text (2,250 projectors, 2,085 flashes, 40 marine projectors, 24 lasers, 263 mirrors on 114 axes).</p>
     <h3>The form of the tower</h3>
     <p>The structure is traced from the sheet <i>Façade et circulation verticale</i> (p. 132). Read against Annex 7, the drawing yields a scale of about 0.23 m to the unit: its five platforms fall at 91, 142, 231, 267 and 300 m, where the structural calculation places them at 92, 144, 236, 272 and 307 m. The core measures some 36 m on façade 2 and 23 m on section 6; the cantilevered arms come in pairs, and it is between these pairs that the first vertical axes are set, which is how the night renderings (pp. 87, 89) show the mirrors. A wider frame encloses the lower 76 m, and the socle is an inverted trapezoid, 70 m at the slab. The sheet shows only the arms lying in its two planes; the rest of the two hundred named on p. 26 are placed within the envelope those arms define. The maquette photographed on p. 86 belongs to an earlier, denser state of the project and has not been followed. The façade can be laid over the rendering from the Documents tab.</p>
+    <h3>The site</h3>
+    <p>The first maquette (1963) placed the tower directly in front of the C.N.I.T., on the axis of the voie triomphale (p. 14). The E.P.A.D. excluded zone A, and after an interval on R.A.T.P. ground two kilometres to the west, the project settled about one kilometre west of the C.N.I.T., facing the museum Le Corbusier was to build, on ground at 52 m, against the S.N.C.F. land at La Folie, between the A14 and the Saint-Germain branch of the R.E.R. (pp. 14–15, 70; plans pp. 133, 135). The tower is placed there, at roughly 48.8948° N, 2.2245° E, to within a hundred metres or so: the published plans carry no coordinates and the road layout has since changed. The map defaults to the I.G.N. aerial survey of 1965–1980, which shows the ground as it stood when the site was chosen.</p>
+    <h3>The mirrors and the wind</h3>
+    <p>The 114 axes are “mus par des moteurs électriques”, at variable speed in slow, medium and fast groups (p. 26); nothing in the text has the wind turn them, and the wind reaches the mirrors only by way of the anemometers and the programme. The rendering keeps to this. An option in Réglages lets idle mirrors swing in the gusts, as a 150 m² panel on an unbraked axis would; it is outside the text and off by default.</p>
     <h3>Inputs</h3>
     <p>The ten sensors that set the régime are those of the 1973 simulation: four microphones of increasing sensitivity, four anemometers at different altitudes, and two road-traffic sensors that fire when a Poisson draw exceeds its mean (p. 115). The anemometers read the winds given by Open-Meteo at 10, 80, 120 and 180 m above La Défense, which answers fairly closely to Schöffer’s “capteurs de vent supposés à des altitudes différentes”; the road sensors take their mean from the Ville de Paris counters. Without a microphone on site, sound is estimated from the same counts by the CoRTN relation, unless the viewer’s own microphone is switched on. All twenty-eight channels enter the functions X<sub>i</sub> as x<sub>j</sub>, and the remote ones, averaged, give the “tonalité générale” (p. 113) by lowering or raising the thresholds K<sub>i</sub>.</p>
     <p>The teletype has been replaced by whatever a browser may still request without credentials, and the substitutions should be read as substitutions. The P.T.T. become two rates of transmission: French-language posts on Bluesky for the telephones, edits to the French Wikipedia for the telegraphs. The noise at the back of the Chamber becomes a compound of sitting hours, the LCP wire and public posts naming the Assembly. Air navigation is reduced to aeronautical meteorology at Roissy, since no source of air traffic will answer a browser. The Préfecture’s counts are published a day late, so, taking Schöffer at his word that the city unfolds “un programme type de rythmes qui se déroulent sur 24 heures” (p. 29), the prototype reads the previous day at the present hour. The Bourse and the R.A.T.P./S.N.C.F. lines need free keys (Réglages). The sapeurs-pompiers have no open real-time source and remain simulated, by the Poisson method of 1973. Frame stresses are computed from the live wind with Schöffer’s own structural figures (pp. 126–127: Sv = 5,850 m², global coefficient 1.5, design shear 840 t) and from EMSC seismicity.</p>
@@ -249,6 +261,7 @@ table.ana i{display:block;height:6px}
     <div class="dim" style="font-size:10.5px">alphavantage.co/support/#api-key · prim.iledefrance-mobilites.fr</div>
     <h3>Programme général (p. 100)</h3>
     <div class="rowi"><label style="margin:0"><input type="radio" name="shut" value="0-8"> extinction de minuit à 8 h</label><label style="margin:0"><input type="radio" name="shut" value="2-6"> ou de 2 à 6 h</label></div>
+    <div class="rowi"><label style="margin:0"><input type="checkbox" id="mwind"> miroirs à l’arrêt libres au vent (hors texte)</label></div>
     <div class="rowi"><label style="margin:0"><input type="checkbox" id="lang"> langage conventionnel (météo à 19 h / 21 h 30, circulation 17–20 h)</label></div>
     <h3>Horloge du programme</h3>
     <div class="rowi"><select id="speed"><option value="1">temps réel</option><option value="5">× 5</option><option value="20">× 20</option><option value="60">× 60</option></select><button class="btn" id="btn-now">revenir à l’heure</button></div>
@@ -260,6 +273,7 @@ table.ana i{display:block;height:6px}
     <div class="rowi"><button class="btn" id="btn-smoke">déclencher les bombes fumigènes</button><button class="btn" id="btn-reassign">réaffecter les groupes</button></div>
   </section>
 </aside>
+<div id="minimap"><div class="mmbar"><span>site de la T.L.C.</span><button data-l="ign">1965–80</button><button data-l="plan">plan</button><button data-l="sat">satellite</button><button id="mm-min">–</button></div><div id="mm"></div><div id="mm-cap"></div></div>
 <div id="lightbox" hidden><img id="lb-img" alt=""><div id="lb-cap"></div></div>
 
 <div id="simnote" hidden><button id="simnote-close">×</button>This copy cannot reach the network, so every line runs in simulation by Schöffer’s own 1973 method. The live version runs on the public site or from the downloaded file.</div>
@@ -272,6 +286,7 @@ table.ana i{display:block;height:6px}
   <button id="start">Mettre en marche</button>
 </div></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>

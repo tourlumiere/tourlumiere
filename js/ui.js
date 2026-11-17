@@ -318,6 +318,48 @@
     ov.style.left = (p0.x - 257.3 * k) + 'px'; ov.style.top = (p0.y - 1771.5 * k) + 'px';
   }
 
+
+  // ---------------- situation map: where the tower would have stood, and where we are looking from
+  let MM = null;
+  function initMap() {
+    if (typeof L === 'undefined') { $('#minimap').hidden = true; return; }
+    const site = [DATA.SITE.lat, DATA.SITE.lon];
+    const map = L.map('mm', { zoomControl: false, attributionControl: true, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false }).setView(site, 15);
+    const layers = {
+      plan: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }),
+      sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri, Maxar' }),
+      ign: L.tileLayer('https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS.1965-1980&STYLE=BDORTHOHISTORIQUE&TILEMATRIXSET=PM_3_18&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/png', { maxZoom: 18, attribution: 'IGN, photographies aériennes 1965–1980' })
+    };
+    let cur = store.get('mmLayer', 'ign'); layers[cur].addTo(map);
+    $$('#minimap [data-l]').forEach(b => { b.classList.toggle('on', b.dataset.l === cur); b.addEventListener('click', () => { map.removeLayer(layers[cur]); cur = b.dataset.l; layers[cur].addTo(map); store.set('mmLayer', cur); $$('#minimap [data-l]').forEach(x => x.classList.toggle('on', x === b)); }); });
+    $('#mm-min').addEventListener('click', () => { $('#minimap').classList.toggle('min'); setTimeout(() => map.invalidateSize(), 50); });
+    const m2ll = (e, nn) => [site[0] + nn / 111320, site[1] + e / (111320 * Math.cos(site[0] * Math.PI / 180))];
+    const sq = (hx, hz) => [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]].map(([e, s]) => m2ll(e, -s));
+    L.polygon(sq(35, 35), { color: '#e2a03f', weight: 1, fillOpacity: 0.15 }).addTo(map);              // socle 70 × 70 m
+    L.polygon(sq(tower.CX, tower.CZ), { color: '#ff3b2e', weight: 2, fillColor: '#ff3b2e', fillOpacity: 0.7 }).addTo(map); // core 36 × 23 m
+    const cone = L.polygon([site, site, site], { color: '#ffe9b0', weight: 1.5, fillColor: '#ffe9b0', fillOpacity: 0.28, interactive: false }).addTo(map);
+    const eye = L.circleMarker(site, { radius: 4, color: '#fff', fillColor: '#5b7cff', fillOpacity: 1, weight: 1.5 }).addTo(map);
+    MM = { map, cone, eye, site, m2ll, lastZ: 15, lastC: site };
+  }
+  function updateMap() {
+    if (!MM) return;
+    const c = VIEW.cam, cv = $('#view');
+    const flat = Math.cos(c.el) * c.dist;
+    const e = Math.sin(c.az) * flat, nn = -Math.cos(c.az) * flat;          // camera offset from the tower (m)
+    const eyeLL = MM.m2ll(e, nn); MM.eye.setLatLng(eyeLL);
+    const bearing = Math.atan2(-e, -nn);                                 // direction of view, from north, clockwise
+    const aspect = cv.clientWidth / Math.max(1, cv.clientHeight), hf = Math.atan(Math.tan(19 * Math.PI / 180) * aspect);
+    const len = Math.max(900, flat * 1.8), pts = [eyeLL];
+    for (let k = 0; k <= 8; k++) { const b = bearing - hf + 2 * hf * k / 8; pts.push(MM.m2ll(e + Math.sin(b) * len, nn + Math.cos(b) * len)); }
+    MM.cone.setLatLngs(pts);
+    // keep both the tower and the viewer in frame; refit only when the view has moved noticeably
+    const key = Math.round(flat / 60) + ':' + Math.round(eyeLL[0] * 2000) + ':' + Math.round(eyeLL[1] * 2000);
+    if (key !== MM.lastKey) { MM.lastKey = key; MM.map.fitBounds(L.latLngBounds([MM.site, eyeLL]).pad(0.35), { animate: false, maxZoom: 17 }); }
+    $('#mm-cap').textContent = `regard vers ${Math.round(((bearing * 180 / Math.PI) % 360 + 360) % 360)}° · ${Math.round(flat)} m du pied`;
+  }
+  try { initMap(); } catch (e) { $('#minimap').hidden = true; }
+  setInterval(updateMap, 150);
+
   // ---------------- teletype
   let ttQueue = [], ttLine = null, ttShown = 0, lastLog = 0; const tt = $('#teletype');
   function teletypeStep() {
@@ -363,6 +405,8 @@
   $('#radio').addEventListener('change', e => { DATA.cfg.radio = e.target.checked; if (e.target.checked) DATA.startAudio(); else ['inter', 'info'].forEach(k => { const r = DATA.ctx.radio[k]; if (r) r.el.pause(); }); });
   $$('#views button[data-v]').forEach(b => b.addEventListener('click', () => VIEW.preset(b.dataset.v)));
   $('#autorot').addEventListener('click', () => { VIEW.cam.auto = !VIEW.cam.auto; });
+  DATA.ctx.mirrorWind = store.get('mirrorWind', false); $('#mwind').checked = DATA.ctx.mirrorWind;
+  $('#mwind').addEventListener('change', e => { DATA.ctx.mirrorWind = e.target.checked; store.set('mirrorWind', e.target.checked); });
 
   // ---------------- start
   $('#start').addEventListener('click', async () => {

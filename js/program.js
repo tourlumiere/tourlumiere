@@ -311,7 +311,7 @@ function makeProg(params) {
       }
     }
     // mirror axes: speed group × envelope; arrest when inactive
-    const base = { lent: 0.25, moyen: 0.8, rapide: 2.0 };
+    const base = { lent: 0.5, moyen: 1.5, rapide: 3.4 }; // rad/s: about 5, 14 and 32 turns a minute
     T.axes.forEach((ax, i) => {
       let sp = 0;
       if (axisOn[i] > 0 && !S.shutdown) {

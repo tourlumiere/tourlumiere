@@ -62,11 +62,12 @@ function makeView(sharedCam, opts) {
     scene.add(cityPts);
     // a few 1970s towers of La Défense, and the CNIT vault
     const bmat = new THREE.MeshLambertMaterial({ color: 0x2a2e36 });
-    [[-260, 140, 40, 30], [-180, 120, 60, 25], [230, 180, 45, 35], [300, 110, 70, 22], [-330, 95, 30, 30], [160, -260, 38, 28], [-120, -300, 50, 30], [380, -120, 42, 26], [-40, 330, 60, 24]].forEach(([x, z, h, w]) => {
+    // zone A of La Défense, about 1 km to the east (p. 70): a few towers of the 1970s
+    [[900, 120, 75, 30], [960, -60, 90, 32], [1040, 160, 82, 28], [1120, 40, 70, 34], [1180, -140, 95, 30], [1250, 90, 60, 26], [1320, -40, 88, 30], [980, 260, 55, 28], [1400, 150, 70, 24]].forEach(([x, z, h, w]) => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(w, h * 2.2, w * 0.6), bmat); m.position.set(x, GROUND + h * 1.1, z); scene.add(m);
     });
     const cnit = new THREE.Mesh(new THREE.SphereGeometry(120, 3, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x5a5f66 }));
-    cnit.scale.set(1, 0.38, 1); cnit.rotation.y = Math.PI / 6; cnit.position.set(-150, GROUND, -40); scene.add(cnit);
+    cnit.scale.set(1, 0.38, 1); cnit.rotation.y = Math.PI / 6; cnit.position.set(1000, GROUND, 40); scene.add(cnit); // C.N.I.T., ~1 km east
 
     // ----- socle (70 m × 70 m slab, trapezoidal)
     // socle as drawn on p. 132: an inverted trapezoid, 70 m at the slab, about 40 m at the ground, 26 m high
@@ -253,7 +254,9 @@ function makeView(sharedCam, opts) {
     // mirrors: rotate, and glint toward the camera with the light around them
     const ml = mirrorMesh.userData.list; const camP = camera.position;
     for (let i = 0; i < ml.length; i++) {
-      const q = ml[i]; const target = OUT.axisSpeed[q.ai];
+      const q = ml[i]; let target = OUT.axisSpeed[q.ai];
+      // optional, outside the text: an idle (unbraked) mirror swings in the gusts at its height
+      if (ctx.mirrorWind && Math.abs(target) < 0.01) { const w = ctx.wind || {}; const v = ((q.m.yc > 150 ? w.v180 : q.m.yc > 100 ? w.v120 : w.v80) || 15) / 3.6; const g = (w.gust || 1.4) - 1; target = 0.012 * v * (1 + 2 * g) * Math.sin(nowp / 1000 * (0.35 + 0.2 * Math.sin(q.m.phase)) + q.m.phase * 5) * Math.sqrt(q.m.w * q.m.h / 20); }
       q.v = (q.v || 0) + (target - (q.v || 0)) * Math.min(1, dt * 0.8);       // motor inertia
       mirrorAngle[i] += q.v * dt;
       const ang = mirrorAngle[i] + q.m.phase;
