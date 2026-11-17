@@ -117,7 +117,11 @@ body.panel-closed #minimap{right:16px}
 body.panel-closed #m3d{right:16px}
 .m3dbar{display:flex;gap:8px;align-items:center;padding:6px 8px;font-size:11px}.m3dbar span{flex:1;font-family:var(--serif);font-size:16px}
 .m3dbar button{background:none;border:1px solid var(--line);color:var(--paper);font:inherit;font-size:11px;padding:3px 8px;cursor:pointer}.m3dbar button.on{border-color:var(--ochre);color:var(--ochre)}
-#m3d-map{flex:1;position:relative}#m3d-info{font-size:11px;padding:6px 8px;color:#cbbf9f}#m3d-info b{color:var(--paper);font-weight:500}
+#m3d-slot{flex:1;position:relative;display:flex}#m3d-map{flex:1;position:relative;min-height:0}
+#mm3d-slot{display:none;height:210px}#minimap.is3d #mm3d-slot{display:flex}#minimap.is3d #mm{display:none}#mm3d-slot #m3d-map{height:210px}
+#minimap.min #mm3d-slot{display:none!important}
+#mm3d-slot .maplibregl-ctrl-top-right{display:none}#mm3d-slot .maplibregl-ctrl-attrib{font-size:8px;background:rgba(0,0,0,.45)!important;color:#bbb;padding:0 3px;min-height:0}#mm3d-slot .maplibregl-ctrl-attrib a{color:#ccc}#mm3d-slot .maplibregl-ctrl-attrib-button{display:none}
+#mm-3d.on{background:var(--ochre)!important;color:var(--ink)!important}#m3d-info{font-size:11px;padding:6px 8px;color:#cbbf9f}#m3d-info b{color:var(--paper);font-weight:500}
 #m3d-tip{position:absolute;pointer-events:none;background:rgba(13,12,10,.9);border:1px solid var(--line);padding:3px 6px;font-size:11px;z-index:13}
 #m3d-map{}#m3d .maplibregl-ctrl-attrib{font-size:9px}
 @media (max-width:900px){#m3d{right:8px;left:8px}}
@@ -285,8 +289,8 @@ body.panel-closed #m3d{right:16px}
     <div class="rowi"><button class="btn" id="btn-smoke">déclencher les bombes fumigènes</button><button class="btn" id="btn-reassign">réaffecter les groupes</button></div>
   </section>
 </aside>
-<div id="minimap"><div class="mmbar"><span>site de la T.L.C.</span><button data-l="ign">1965–80</button><button data-l="plan">plan</button><button data-l="sat">satellite</button><button id="mm-3d" title="maquette 3D parmi les bâtiments réels">vue 3D</button><button id="mm-min">–</button></div><div id="mm"></div><div id="mm-cap"></div></div>
-<div id="m3d" hidden><div class="m3dbar"><span>Maquette 3D · la T.L.C. parmi les bâtiments actuels</span><label><input type="checkbox" id="m3d-follow" checked> suivre la vue</label><button id="m3d-sat">satellite</button><button id="m3d-close">fermer ×</button></div><div id="m3d-map"></div><div id="m3d-info"></div><div id="m3d-tip" hidden></div></div>
+<div id="minimap"><div class="mmbar"><span>site de la T.L.C.</span><button data-l="ign">1965–80</button><button data-l="plan">plan</button><button data-l="sat">satellite</button><button id="mm-3d" title="maquette 3D parmi les bâtiments réels">3D</button><button id="mm-big" title="agrandir la maquette 3D">⤢</button><button id="mm-min">–</button></div><div id="mm"></div><div id="mm3d-slot"></div><div id="mm-cap"></div></div>
+<div id="m3d" hidden><div class="m3dbar"><span>Maquette 3D · la T.L.C. parmi les bâtiments actuels</span><label><input type="checkbox" id="m3d-follow" checked> suivre la vue</label><button id="m3d-sat">satellite</button><button id="m3d-shrink">réduire</button><button id="m3d-close">fermer ×</button></div><div id="m3d-slot"><div id="m3d-map"></div></div><div id="m3d-info"></div><div id="m3d-tip" hidden></div></div>
 <div id="lightbox" hidden><img id="lb-img" alt=""><div id="lb-cap"></div></div>
 
 <div id="simnote" hidden><button id="simnote-close">×</button>This copy cannot reach the network, so every line runs in simulation by Schöffer’s own 1973 method. The live version runs on the public site or from the downloaded file.</div>
@@ -308,11 +312,11 @@ body.panel-closed #m3d{right:16px}
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-<script src="js/tower.js?v=1794947714"></script>
-<script src="js/data.js?v=1794947714"></script>
-<script src="js/program.js?v=1794947714"></script>
-<script src="js/render.js?v=1794947714"></script>
-<script src="js/map3d.js?v=1794947714"></script>
-<script src="js/ui.js?v=1794947714"></script>
+<script src="js/tower.js?v=1794948107"></script>
+<script src="js/data.js?v=1794948107"></script>
+<script src="js/program.js?v=1794948107"></script>
+<script src="js/render.js?v=1794948107"></script>
+<script src="js/map3d.js?v=1794948107"></script>
+<script src="js/ui.js?v=1794948107"></script>
 </body>
 </html>

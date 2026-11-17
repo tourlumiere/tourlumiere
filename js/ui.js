@@ -358,8 +358,10 @@
     $('#mm-cap').textContent = `regard vers ${Math.round(((bearing * 180 / Math.PI) % 360 + 360) % 360)}° · ${Math.round(flat)} m du pied`;
   }
   try { initMap(); } catch (e) { $('#minimap').hidden = true; }
-  $('#mm-3d').addEventListener('click', () => MAP3D.open(tower));
-  $('#m3d-close').addEventListener('click', () => MAP3D.close());
+  $('#mm-3d').addEventListener('click', () => { if (MAP3D.isSmall()) { MAP3D.close(); $('#mm-3d').classList.remove('on'); setTimeout(() => MM && MM.map.invalidateSize(), 50); } else { MAP3D.open(tower, 'small'); $('#mm-3d').classList.add('on'); } });
+  $('#mm-big').addEventListener('click', () => { MAP3D.open(tower, 'large'); $('#mm-3d').classList.remove('on'); });
+  $('#m3d-shrink').addEventListener('click', () => { MAP3D.shrink(); $('#mm-3d').classList.add('on'); });
+  $('#m3d-close').addEventListener('click', () => { MAP3D.close(); $('#mm-3d').classList.remove('on'); setTimeout(() => MM && MM.map.invalidateSize(), 50); });
   $('#m3d-sat').addEventListener('click', () => MAP3D.toggleSat());
   $('#m3d-follow').addEventListener('change', e => MAP3D.setFollow(e.target.checked));
   setInterval(() => MAP3D.sync(), 120);

@@ -30,13 +30,22 @@ const MAP3D = (function () {
     return { type: 'FeatureCollection', features: F };
   }
 
-  function open(tower) {
-    T = tower;
-    $id('m3d').hidden = false;
+  // the same map lives either in the corner (small) or in the large panel
+  let size = null;
+  function place(where) {
+    const el = $id('m3d-map');
+    if (where === 'small') { $id('mm3d-slot').appendChild(el); $id('m3d').hidden = true; $id('minimap').classList.add('is3d'); }
+    else { $id('m3d-slot').appendChild(el); $id('m3d').hidden = false; $id('minimap').classList.remove('is3d'); }
+    size = where;
+    if (map) setTimeout(() => { map.resize(); map.jumpTo(view(where)); }, 30);
+  }
+  function view(where) { return where === 'small' ? { zoom: 14.05, pitch: 42, center: [DATA.SITE.lon, DATA.SITE.lat], padding: { top: 90, bottom: 0, left: 0, right: 0 } } : { zoom: 15.2, pitch: 64, center: [DATA.SITE.lon, DATA.SITE.lat], padding: { top: 0, bottom: 0, left: 0, right: 0 } }; }
+  function open(tower, where) {
+    T = tower; place(where || 'large');
     if (map) { map.resize(); return; }
     if (typeof maplibregl === 'undefined') { $id('m3d-info').textContent = 'MapLibre n’a pas pu être chargé.'; return; }
     const site = [DATA.SITE.lon, DATA.SITE.lat];
-    map = new maplibregl.Map({ container: 'm3d-map', style: 'https://tiles.openfreemap.org/styles/liberty', center: site, zoom: 15.2, pitch: 64, bearing: bearingNow(), maxPitch: 80, attributionControl: { compact: true } });
+    map = new maplibregl.Map(Object.assign({ container: 'm3d-map', style: 'https://tiles.openfreemap.org/styles/liberty', bearing: bearingNow(), maxPitch: 80, attributionControl: { compact: false } }, view(size)));
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
     map.on('load', () => {
       map.addSource('esri', { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, attribution: 'Esri, Maxar' });
@@ -48,7 +57,7 @@ const MAP3D = (function () {
       tallest();
     });
     map.on('moveend', tallest);
-    map.on('dragstart', () => { follow = false; $id('m3d-follow').checked = false; });
+    map.on('dragstart', () => { if (size === 'large') { follow = false; $id('m3d-follow').checked = false; } });
     map.on('mousemove', e => {
       const f = map.queryRenderedFeatures(e.point, { layers: ['tlc', 'building-3d'].filter(l => map.getLayer(l)) })[0];
       const tip = $id('m3d-tip');
@@ -63,10 +72,12 @@ const MAP3D = (function () {
     $id('m3d-info').innerHTML = `T.L.C. : <b>${SOCLE + T.H} m</b> au-dessus du sol (socle ${SOCLE} m + ossature ${T.H} m), sans les mâts · plus haut bâtiment dans le champ : <b>${Math.round(best)} m</b> (hauteurs OpenStreetMap, parfois estimées)`;
   }
   function bearingNow() { const c = VIEW.cam; return ((-c.az * 180 / Math.PI) % 360 + 360) % 360; }
-  function sync() { if (map && follow && !$id('m3d').hidden) map.jumpTo({ bearing: bearingNow() }); }
-  function close() { $id('m3d').hidden = true; }
+  function sync() { if (map && follow && size) map.jumpTo({ bearing: bearingNow() }); }
+  function close() { $id('m3d').hidden = true; $id('minimap').classList.remove('is3d'); size = null; }
+  function shrink() { place('small'); }
+  function isSmall() { return size === 'small'; }
   function toggleSat() { if (!map || !map.getLayer('esri')) return; sat = !sat; map.setLayoutProperty('esri', 'visibility', sat ? 'visible' : 'none'); $id('m3d-sat').classList.toggle('on', sat); }
   function setFollow(v) { follow = v; sync(); }
   function $id(i) { return document.getElementById(i); }
-  return { open, close, sync, toggleSat, setFollow };
+  return { open, close, shrink, isSmall, sync, toggleSat, setFollow };
 })();
