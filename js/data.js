@@ -262,7 +262,7 @@ const DATA = (function () {
     if (!ok) throw new Error('no press source');
     const c = byId.presse;
     setCh('presse', byMax(c, n), n, `${n} dépêches / 60 min`, 'DIRECT');
-    if (last) say('AFP/PRESSE ' + last.toUpperCase().slice(0, 90));
+    if (last) { ctx.headline = last; say('AFP/PRESSE ' + last.toUpperCase().slice(0, 90)); }
   }
 
   async function fChambre() {
@@ -271,7 +271,7 @@ const DATA = (function () {
       const r = await getJSON(RSS + encodeURIComponent('https://lcp.fr/rss.xml'));
       const since = now() - 3 * 3600000;
       (r.items || []).forEach(it => { if (Date.parse(it.pubDate.replace(' ', 'T') + 'Z') > since) lcp++; });
-      if (r.items && r.items[0]) say('LCP ' + r.items[0].title.toUpperCase().slice(0, 90));
+      if (r.items && r.items[0]) { ctx.lcpHeadline = r.items[0].title; say('LCP ' + r.items[0].title.toUpperCase().slice(0, 90)); }
     } catch (e) { }
     stream.lcp = lcp;
   }

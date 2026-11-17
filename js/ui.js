@@ -460,6 +460,70 @@
   $('#lp-close').addEventListener('click', () => $('#lpmodal').hidden = true);
   $('#lp-dl').addEventListener('click', () => { try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([SIM73.text()], { type: 'text/plain;charset=utf-8' })); a.download = `tlc-listing-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.txt`; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 1000); } catch (e) { } });
 
+
+  // ---------------- plain-language summary of the inputs, every ten minutes
+  let sumLang = store.get('sumLang', 'fr'), lastSum = 0;
+  const live = id => ['DIRECT', 'DIFFÉRÉ', 'DÉRIVÉ', 'ARCHIVE'].includes(DATA.byId[id].status);
+  function trend(id) { // compare with ten minutes ago
+    const c = DATA.byId[id], h = c.hist; if (h.length < 3) return 0;
+    const t0 = Date.now() - 600000; let old = h[0]; for (const p of h) { if (p[0] <= t0) old = p; else break; }
+    const d = c.x - old[1]; return Math.abs(d) < 0.06 ? 0 : d > 0 ? 1 : -1;
+  }
+  const cut = (s, n) => s.length <= n ? s : s.slice(0, s.lastIndexOf(' ', n)) + '…';
+  function summarise() {
+    const fr = sumLang === 'fr', C = DATA.byId, x = DATA.ctx, L = [];
+    const T = (a, b) => fr ? a : b;
+    const tw = id => { const t = trend(id); return t > 0 ? T(' et en hausse', ', rising') : t < 0 ? T(' et en baisse', ', falling') : ''; };
+    const lvl = (v, words) => words[Math.min(words.length - 1, Math.floor(v * words.length))];
+    // weather and light
+    if (live('thermo')) {
+      const w = x.wind || {}, gust = Math.round((w.v10 || 0) * (w.gust || 1));
+      const sky = x.cloud > 85 ? T('ciel couvert', 'overcast') : x.cloud > 50 ? T('nuageux', 'cloudy') : x.cloud > 20 ? T('quelques nuages', 'a few clouds') : T('ciel dégagé', 'clear sky');
+      const rain = x.precip > 0 ? T(', il pleut', ', raining') : '';
+      L.push(T(`<b>Météo</b> — ${C.thermo.raw.toFixed(0)} °C, ${sky}${rain}, humidité ${C.hygro.raw} %. Vent ${Math.round(w.v10 || 0)} km/h au sol (rafales vers ${gust}), ${Math.round(w.v180 || 0)} km/h à 180 m, à hauteur du sommet${tw('vent180')}.`,
+        `<b>Weather</b> — ${C.thermo.raw.toFixed(0)} °C, ${sky}${rain}, humidity ${C.hygro.raw}%. Wind ${Math.round(w.v10 || 0)} km/h at ground level (gusts around ${gust}), ${Math.round(w.v180 || 0)} km/h at 180 m, the height of the upper tower${tw('vent180')}.`));
+    }
+    const alt = x.sun.alt;
+    L.push(T(`<b>Lumière</b> — ${alt > 6 ? `plein jour, soleil à ${alt.toFixed(0)}° : les gros projecteurs et les lasers restent éteints` : alt > -6 ? `crépuscule : la tour allume ses projecteurs de nuit au passage du seuil` : `nuit : tous les effets jouent`}${x.moon.illum > 0.5 && alt < 0 ? `, lune à ${(x.moon.illum * 100).toFixed(0)} %` : ''}.`,
+      `<b>Light</b> — ${alt > 6 ? `full daylight, sun at ${alt.toFixed(0)}°: the big projectors and lasers stay off` : alt > -6 ? `dusk: the tower switches on its night projectors as the threshold passes` : `night: every effect is in play`}${x.moon.illum > 0.5 && alt < 0 ? `, moon ${(x.moon.illum * 100).toFixed(0)}% full` : ''}.`));
+    if (live('meteo') && x.forecast) L.push(T(`<b>Demain</b> — ${x.forecast.bad > .66 ? 'mauvais temps annoncé' : x.forecast.bad < .33 ? 'beau temps annoncé' : 'temps mitigé annoncé'} (c’est ce que la tour annonce le soir en rouge ou en bleu).`, `<b>Tomorrow</b> — ${x.forecast.bad > .66 ? 'bad weather forecast' : x.forecast.bad < .33 ? 'fair weather forecast' : 'mixed weather forecast'} (what the tower signals in the evening, red for bad, blue for fair).`));
+    // the city
+    if (live('circulation')) {
+      const busy = lvl(C.circulation.x, fr ? ['très calme', 'calme', 'moyenne', 'chargée', 'très chargée'] : ['very quiet', 'quiet', 'average', 'busy', 'very busy']);
+      L.push(T(`<b>Circulation</b> — ${busy} pour l’heure (relevés de la veille à la même heure) : ${Math.round(C.circulation.raw)} véhicules/h par point de comptage, ${(C.saturation.raw * 100).toFixed(1)} % des points saturés. C’est elle qui fait l’essentiel du « bruit » estimé, ${C.micro.raw.toFixed(0)} dB.`,
+        `<b>Traffic</b> — ${busy} for the hour (yesterday's counts at the same hour): ${Math.round(C.circulation.raw)} vehicles/h per counter, ${(C.saturation.raw * 100).toFixed(1)}% of counters jammed. It also drives the estimated street noise, ${C.micro.raw.toFixed(0)} dB.`));
+    }
+    if (live('velib')) L.push(T(`<b>Vélib’</b> — environ ${Math.round(C.velib.x * 60)} % des vélos sont sortis de leurs bornes${tw('velib')}.`, `<b>Bikes</b> — about ${Math.round(C.velib.x * 60)}% of Vélib’ bikes are out on the streets${tw('velib')}.`));
+    if (live('metro')) L.push(T(`<b>Métro, RER, trains</b> — ${C.metro.raw} perturbations signalées.`, `<b>Metro, RER, trains</b> — ${C.metro.raw} disruptions reported.`));
+    // talk and news
+    if (live('presse')) L.push(T(`<b>Presse</b> — ${C.presse.raw} dépêches dans l’heure${x.headline ? ` ; la plus récente : « ${cut(x.headline, 110)} »` : ''}.`, `<b>Press</b> — ${C.presse.raw} news items in the last hour${x.headline ? `; latest: “${cut(x.headline, 110)}”` : ''}.`));
+    if (live('telephone') || live('telegraphe')) L.push(T(`<b>Conversations</b> — ${live('telephone') ? `${C.telephone.raw.toFixed(0)} messages en français par minute sur Bluesky` : ''}${live('telephone') && live('telegraphe') ? ', ' : ''}${live('telegraphe') ? `${C.telegraphe.raw.toFixed(0)} modifications par minute sur Wikipédia` : ''}${tw('telephone')} (les « téléphones » et « télégraphes » de la tour).`,
+      `<b>Chatter</b> — ${live('telephone') ? `${C.telephone.raw.toFixed(0)} French-language posts a minute on Bluesky` : ''}${live('telephone') && live('telegraphe') ? ', ' : ''}${live('telegraphe') ? `${C.telegraphe.raw.toFixed(0)} edits a minute on French Wikipedia` : ''}${tw('telephone')} (the tower's “telephones” and “telegraphs”).`));
+    if (live('chambre')) L.push(T(`<b>Assemblée</b> — ${/en séance/.test(C.chambre.display) ? 'probablement en séance' : 'hors séance'}${x.lcpHeadline ? ` ; LCP : « ${cut(x.lcpHeadline, 100)} »` : ''}.`, `<b>National Assembly</b> — ${/en séance/.test(C.chambre.display) ? 'probably sitting' : 'not sitting'}${x.lcpHeadline ? `; LCP: “${cut(x.lcpHeadline, 100)}”` : ''}.`));
+    if (live('radio')) L.push(T(`<b>Radio</b> — France Inter ${C.radio.x > .6 ? 'parle fort' : C.radio.x < .3 ? 'est presque silencieuse' : 'à volume moyen'}.`, `<b>Radio</b> — France Inter is ${C.radio.x > .6 ? 'loud' : C.radio.x < .3 ? 'almost silent' : 'at an average level'}.`));
+    if (live('hopitaux')) L.push(T(`<b>Urgences</b> — passages pour infections respiratoires en Île-de-France ${C.hopitaux.x > .66 ? 'élevés' : C.hopitaux.x < .33 ? 'bas' : 'moyens'} pour l’année (données hebdomadaires).`, `<b>Hospitals</b> — emergency visits for respiratory infections in Île-de-France are ${C.hopitaux.x > .66 ? 'high' : C.hopitaux.x < .33 ? 'low' : 'moderate'} for the year (weekly data).`));
+    if (live('seisme')) L.push(x.seismic.I > 1 ? T(`<b>Séismes</b> — ${x.seismic.label}, à peine perceptible ici.`, `<b>Earthquakes</b> — ${x.seismic.label}, barely perceptible here.`) : T('<b>Séismes</b> — rien de ressenti dans les dernières 24 h.', '<b>Earthquakes</b> — nothing felt in the last 24 hours.'));
+    // the tower's answer
+    const R = REC.rows.filter(r => r.t > simT - 600000);
+    if (R.length > 5) {
+      const reg = { bleu: 0, normal: 0, rouge: 0 }; R.forEach(r => reg[r.regime]++);
+      const main = Object.entries(reg).sort((a, b) => b[1] - a[1])[0][0];
+      const lit = Math.round(R.reduce((s, r) => s + r.lit, 0) / R.length);
+      const ind = REC.events.filter(e => e.t > simT - 600000 && /INDIFFÉRENCE/.test(e.s)).length;
+      const name = { bleu: T('bleu (calme)', 'blue (calm)'), normal: T('normal', 'normal'), rouge: T('rouge (excité)', 'red (excited)') };
+      L.push(T(`<b>La tour</b> — surtout en régime ${name[main]} ces dix dernières minutes (${Math.round(reg[main] / R.length * 100)} % du temps), en moyenne ${lit} lumières allumées${ind ? `, ${ind} intervention${ind > 1 ? 's' : ''} de la cellule d’indifférence` : ''}${S.vanish ? ', disparue dans la fumée' : ''}.`,
+        `<b>The tower</b> — mostly in the ${name[main]} régime over the last ten minutes (${Math.round(reg[main] / R.length * 100)}% of the time), with ${lit} lights on average${ind ? `, ${ind} intervention${ind > 1 ? 's' : ''} by the indifference cell` : ''}${S.vanish ? ', hidden in smoke' : ''}.`));
+    }
+    const simIds = DATA.channels.filter(c => !['DIRECT', 'DIFFÉRÉ', 'DÉRIVÉ', 'ARCHIVE'].includes(c.status)).map(c => fr ? c.fr : (c.id.startsWith('vent') ? `${c.en} ${c.id.slice(4)} m` : c.en));
+    if (simIds.length) L.push(`<span class="dim">${T('Pas en direct pour l’instant (simulé ou clé requise) : ', 'Not live at the moment (simulated or key needed): ')}${simIds.join(', ')}.</span>`);
+    const now = new Date(simT).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' });
+    $('#sum-body').innerHTML = L.map(l => `<p>${l}</p>`).join('');
+    $('#sum-time').textContent = T(`mis à jour ${now} · prochain dans 10 min`, `updated ${now} · next in 10 min`);
+    lastSum = Date.now();
+  }
+  $$('#sumbox [data-lang]').forEach(b => { b.classList.toggle('on', b.dataset.lang === sumLang); b.addEventListener('click', e => { e.preventDefault(); sumLang = b.dataset.lang; store.set('sumLang', sumLang); $$('#sumbox [data-lang]').forEach(x => x.classList.toggle('on', x === b)); if (started) summarise(); }); });
+  setInterval(() => { if (!started) return; const age = Date.now() - lastSum; if ((lastSum === 0 && REC.rows.length >= 8) || age >= 600000) summarise(); }, 5000);
+
   // ---------------- teletype
   let ttQueue = [], ttLine = null, ttShown = 0, lastLog = 0; const tt = $('#teletype');
   function teletypeStep() {
