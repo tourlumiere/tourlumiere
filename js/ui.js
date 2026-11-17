@@ -61,6 +61,7 @@
       if (PB) PB.tick(simT, x, bits, ctx, o);
       opt.manualSmoke = false;
       record(simT, bits);
+      try { SIM73.step(simT, bits); lpDirty = true; } catch (e) { }
     }
   }
   function loop() {
@@ -80,6 +81,7 @@
     $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
     $$('.tab').forEach(t => t.hidden = t.id !== 'tab-' + b.dataset.tab);
     if (b.dataset.tab === 'analyse') analyse();
+    if (b.dataset.tab === 'listing') { lpDirty = true; }
   }));
   $('#panel-toggle').addEventListener('click', () => { document.body.classList.toggle('panel-closed'); setTimeout(resizeAll, 50); });
 
@@ -441,6 +443,22 @@
   $('#m3d-follow').addEventListener('change', e => MAP3D.setFollow(e.target.checked));
   setInterval(() => MAP3D.sync(), 120);
   setInterval(updateMap, 150);
+
+
+  // ---------------- the listing of the 1973 simulation
+  let lpDirty = false;
+  function renderListing() {
+    if (!lpDirty) return; lpDirty = false;
+    const txt = SIM73.S.pages.slice(-12).join('\n\n');
+    const vis = !$('#tab-listing').hidden, big = !$('#lpmodal').hidden;
+    if (vis) { const el = $('#listing'); el.textContent = txt; el.parentNode.scrollTop = el.parentNode.scrollHeight; }
+    if (big) { const el = $('#listing-big'); el.textContent = txt; el.parentNode.scrollTop = el.parentNode.scrollHeight; }
+    if (!vis && !big) lpDirty = true;
+  }
+  setInterval(renderListing, 400);
+  $('#lp-big').addEventListener('click', () => { $('#lpmodal').hidden = false; lpDirty = true; renderListing(); });
+  $('#lp-close').addEventListener('click', () => $('#lpmodal').hidden = true);
+  $('#lp-dl').addEventListener('click', () => { try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([SIM73.text()], { type: 'text/plain;charset=utf-8' })); a.download = `tlc-listing-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.txt`; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 1000); } catch (e) { } });
 
   // ---------------- teletype
   let ttQueue = [], ttLine = null, ttShown = 0, lastLog = 0; const tt = $('#teletype');

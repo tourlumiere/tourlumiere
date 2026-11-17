@@ -119,6 +119,11 @@ body.panel-closed #minimap{right:16px}
 #pick-body{padding:8px 10px 10px}#pick-body h4{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ochre);margin:10px 0 3px;font-weight:500}
 .pk-h{font-family:var(--serif);font-size:15px;color:var(--paper)}.pk-s{color:var(--dim)}.pk-state{margin-top:5px;color:var(--dim)}.pk-state.on{color:#8fd18b}
 .pk-why{color:#d9c7a0}.pk-t{width:100%;border-collapse:collapse;margin:3px 0}.pk-t td,.pk-t th{padding:1px 3px;text-align:left;font-weight:400;color:#cbbf9f;border-bottom:1px solid #221f1a}.pk-t th{color:var(--dim)}.pk-t .badge{position:static;font-size:8px;padding:0 3px}
+.lp{position:relative;background:repeating-linear-gradient(#f3f5ec 0 26px,#d9e9d2 26px 52px);padding:0 22px;overflow:auto;max-height:calc(100vh - 260px);box-shadow:inset 0 0 30px rgba(0,0,0,.12)}
+.lp::before,.lp::after{content:'';position:absolute;top:0;bottom:0;width:22px;background:radial-gradient(circle at 11px 13px,#0d0c0a 4px,transparent 5px) repeat-y 0 0/22px 26px;pointer-events:none}.lp::before{left:0}.lp::after{right:0}
+.lp pre{margin:0;font-family:var(--mono);font-size:7.6px;line-height:13px;color:#23262a;white-space:pre;min-width:max-content;padding:0 6px;text-shadow:0 0 .4px #23262a}
+#lpmodal{position:fixed;inset:16px;z-index:14;background:#0d0c0a;border:1px solid var(--line);display:flex;flex-direction:column}#lpmodal .lp{flex:1;max-height:none}
+.lp-big pre{font-size:12.5px;line-height:13px}
 #m3d{position:fixed;left:16px;top:16px;right:420px;bottom:16px;z-index:12;background:#0d0c0a;border:1px solid var(--line);display:flex;flex-direction:column}
 body.panel-closed #m3d{right:16px}
 .m3dbar{display:flex;gap:8px;align-items:center;padding:6px 8px;font-size:11px}.m3dbar span{flex:1;font-family:var(--serif);font-size:16px}
@@ -154,7 +159,7 @@ body.panel-closed #m3d{right:16px}
 <button id="panel-toggle" title="panneau">☰</button>
 <aside id="panel">
   <nav id="tabs">
-    <button data-tab="capteurs" class="on">Capteurs</button><button data-tab="programme">Programme</button><button data-tab="indifference">Indifférence</button><button data-tab="teletype">Télétype</button><button data-tab="analyse">Analyse</button><button data-tab="comparer">Comparer</button><button data-tab="archives">Archives</button><button data-tab="documents">Documents</button><button data-tab="schema">Schéma</button><button data-tab="notes">Notes</button><button data-tab="reglages">Réglages</button>
+    <button data-tab="capteurs" class="on">Capteurs</button><button data-tab="programme">Programme</button><button data-tab="indifference">Indifférence</button><button data-tab="teletype">Télétype</button><button data-tab="listing">Listing</button><button data-tab="analyse">Analyse</button><button data-tab="comparer">Comparer</button><button data-tab="archives">Archives</button><button data-tab="documents">Documents</button><button data-tab="schema">Schéma</button><button data-tab="notes">Notes</button><button data-tab="reglages">Réglages</button>
   </nav>
 
   <section class="tab" id="tab-capteurs">
@@ -225,6 +230,14 @@ body.panel-closed #m3d{right:16px}
     <p class="dim" style="font-size:12px;margin-top:10px">Nicolas Schöffer, <i>La Tour Lumière Cybernétique</i>, Paris, Denoël/Gonthier, 1973. Œuvres de Nicolas Schöffer © ADAGP, Paris.</p>
   </section>
 
+
+  <section class="tab" id="tab-listing" hidden>
+    <h3>Listing de la simulation (annexe 6)</h3>
+    <p class="dim" style="font-size:12.5px">La simulation réduite de Schöffer — 6 fenêtres, 33 sorties, passages de 5 minutes à Δt = 5 s — tourne ici sur les dix capteurs réels du régime. Il en avait fait imprimer les résultats à chaque instant T comme « une image physique » des façades par paliers et de chaque fenêtre, « en évitant la codification » ; ces listings n’ont pas été publiés « à cause de sa longueur » (p. 113). Le contenu suit les annexes ; la mise en page est une reconstitution.</p>
+    <div class="rowi" style="display:flex;gap:6px;margin:6px 0"><button class="btn" id="lp-big">plein écran</button><button class="btn" id="lp-dl">télécharger le listing (.txt)</button></div>
+    <div class="lp"><pre id="listing"></pre></div>
+  </section>
+
   <section class="tab" id="tab-schema" hidden>
     <h3>Schéma théorique du fonctionnement de la T.L.C. (p. 99)</h3>
     <div id="schema"><svg class="sch" viewBox="0 0 380 330">
@@ -247,7 +260,7 @@ body.panel-closed #m3d{right:16px}
 
   <section class="tab notes" id="tab-notes" hidden>
     <h2>On this prototype</h2>
-    <p>Schöffer gives the Tour Lumière Cybernétique two programmes, and they do not quite coincide. The <i>Programme du calculateur</i> (Appendix 5, pp. 108–111) states the general case: Boolean functions X<sub>i</sub> of the normalised inputs, organs dealt by lot into groups, and, for each function that fires, a random duration Y<sub>i</sub> and a randomly drawn mode of operation. The <i>Simulation du fonctionnement</i> (Appendix 6, pp. 112–124), run in Fortran IV on a CDC 6400, reduces the tower to six windows and thirty-three outputs, and supplies what the general programme lacks, namely the coefficient of excitation D computed over ten binary sensors and the three régimes it selects. The prototype runs both together. The régime of the simulation governs colour, intensity and the validating draw; the general programme decides which organs are commanded, for how long and in what order, across the full inventory of the 1973 text (2,250 projectors, 2,085 flashes, 40 marine projectors, 24 lasers, 263 mirrors on 114 axes).</p>
+    <p>Schöffer gives the Tour Lumière Cybernétique two programmes, and they do not quite coincide. The <i>Programme du calculateur</i> (Appendix 5, pp. 108–111) states the general case: Boolean functions X<sub>i</sub> of the normalised inputs, organs dealt by lot into groups, and, for each function that fires, a random duration Y<sub>i</sub> and a randomly drawn mode of operation. The <i>Simulation du fonctionnement</i> (Appendix 6, pp. 112–124), whose computer and language the book does not name, reduces the tower to six windows and thirty-three outputs, and supplies what the general programme lacks, namely the coefficient of excitation D computed over ten binary sensors and the three régimes it selects. The prototype runs both together. The régime of the simulation governs colour, intensity and the validating draw; the general programme decides which organs are commanded, for how long and in what order, across the full inventory of the 1973 text (2,250 projectors, 2,085 flashes, 40 marine projectors, 24 lasers, 263 mirrors on 114 axes).</p>
     <h3>The form of the tower</h3>
     <p>The structure is traced from the sheet <i>Façade et circulation verticale</i> (p. 132). Read against Annex 7, the drawing yields a scale of about 0.23 m to the unit: its five platforms fall at 91, 142, 231, 267 and 300 m, where the structural calculation places them at 92, 144, 236, 272 and 307 m. The core measures some 36 m on façade 2 and 23 m on section 6; the cantilevered arms come in pairs, and it is between these pairs that the first vertical axes are set, which is how the night renderings (pp. 87, 89) show the mirrors. A wider frame encloses the lower 76 m, and the socle is an inverted trapezoid, 70 m at the slab. The sheet shows only the arms lying in its two planes; the rest of the two hundred named on p. 26 are placed within the envelope those arms define. The maquette photographed on p. 86 belongs to an earlier, denser state of the project and has not been followed. The façade can be laid over the rendering from the Documents tab.</p>
     <h3>The site</h3>
@@ -265,6 +278,8 @@ body.panel-closed #m3d{right:16px}
     <p>Each X<sub>i</sub> is sensitive to three to seven inputs, with A<sub>ij</sub> uniform on (0, 1). K<sub>i</sub> is set against the running mean of its inputs, so that a function fires a little more than half the time. Seventy-two per cent of the groups carry a function and the rest are at rest. Y<sub>i</sub> follows a gamma law whose mean depends on the type of organ. Functions are reassigned every five minutes, the period Stener Jørgensen and Laplante-Anfossi suggest. The fifty modes (“50 environ”, p. 111) are the product of ten orderings and five envelopes, both taken from the vocabulary of p. 101. The cellule d’indifférence watches for a recurring peak in the autocorrelation of activity, for saturation and stagnation relative to the evening’s own mean, and for a régime held longer than ten minutes; it answers by redrawing a third of the sensitivities and by antagonist flashes (pp. 29, 100, 115). The disappearance in smoke lasts ten minutes, after Stener Jørgensen (2024), and is set off by a felt earthquake, by the city’s threshold of excitation, or by hand. Gusts are interpolated between hourly winds; the noise estimate and the seismic attenuation are orders of magnitude only.</p>
     <h3>Textual difficulties</h3>
     <p>The printed formula reads θ<sub>i</sub> = N<sub>i</sub>/Y<sub>i</sub>, while the sentence introducing it divides Y<sub>i</sub> by N<sub>i</sub>; the prototype follows the sentence. The régimes are given as D ≤ 3, 3 &lt; D &lt; 8 and D ≥ 8 in Annex 1, and as “3 ou moins”, “entre 4 et 7” and “entre 8 et 10” on p. 114, which agree for integers. The inventory of p. 26 (4,664 parameters of action) differs from that of Annex 2 (2,592 Cibié projectors, 1,977 Orthotron flashes, 60 Fulgor, 12 arc projectors, 343 cabinets); the former has been used. The night renderings paint the frame pale, where p. 26 specifies Corten steel; the rendering here sits between the two.</p>
+    <h3>The listing</h3>
+    <p>Schöffer’s simulation did not run as a picture. It ran for five minutes in steps of five seconds and, at each instant, printed its results on the computer’s listings, which tried to give “une image physique” of the façades by landing and of the six windows, “en évitant la codification” (pp. 113, 116). The listings were left out of the book for their length (p. 113, note 1), so that only the sensor chart of Fig. 1 survives in print. The Listing tab runs that reduced simulation as the appendix specifies it, with its six windows and thirty-three outputs (p. 123), its functions F<sub>i</sub> = Σ C<sub>i</sub><sup>j</sup>X<sub>e</sub><sup>j</sup> − B<sub>i</sub> over the ten binary sensors (p. 119), and the shutter table (p. 124), fed by the same live sensors as the tower, and prints each instant on simulated fanfold paper. Its content follows the text; its layout is a reconstruction, since no page of the original listings has been reproduced.</p>
     <h3>Instruments</h3>
     <p>Stener Jørgensen and Laplante-Anfossi argue that a programme which treats every input as so much volume of information, passed through several probability laws, would be unpredictable locally and self-similar globally, a “big blur” in which the tower behaves as though it were no longer interacting with its environment. Three instruments bear on the claim. The Analyse tab records every step and estimates how much of the tower’s variation the twenty-eight inputs explain (R²), which inputs it follows, and how quickly its fluctuations average out as the window widens. The Comparer tab runs a second programme on the same data under different criteria, so that what belongs to Paris can be separated from what belongs to the laws of chance. The Archives tab replays a past day, so that an ordinary Tuesday can be set against a day of strikes or storms.</p>
     <h3>Sources</h3>
@@ -298,6 +313,7 @@ body.panel-closed #m3d{right:16px}
 <div id="minimap"><div class="mmbar"><span>site de la T.L.C.</span><button data-l="ign">1965–80</button><button data-l="plan">plan</button><button data-l="sat">satellite</button><button id="mm-3d" title="maquette 3D parmi les bâtiments réels">3D</button><button id="mm-big" title="agrandir la maquette 3D">⤢</button><button id="mm-min">–</button></div><div id="mm"></div><div id="mm3d-slot"></div><div id="mm-cap"></div></div>
 <div id="m3d" hidden><div class="m3dbar"><span>Maquette 3D · la T.L.C. parmi les bâtiments actuels</span><label><input type="checkbox" id="m3d-follow" checked> suivre la vue</label><button id="m3d-sat">satellite</button><button id="m3d-shrink">réduire</button><button id="m3d-close">fermer ×</button></div><div id="m3d-slot"><div id="m3d-map"></div></div><div id="m3d-info"></div><div id="m3d-tip" hidden></div></div>
 <div id="pick" hidden><div class="pk-bar"><span>Cette lumière répond à…</span><button id="pick-close">×</button></div><div id="pick-body"></div></div>
+<div id="lpmodal" hidden><div class="m3dbar"><span>Listing — simulation du fonctionnement de la T.L.C.</span><button id="lp-close">fermer ×</button></div><div class="lp lp-big"><pre id="listing-big"></pre></div></div>
 <div id="lightbox" hidden><img id="lb-img" alt=""><div id="lb-cap"></div></div>
 
 <div id="simnote" hidden><button id="simnote-close">×</button>This copy cannot reach the network, so every line runs in simulation by Schöffer’s own 1973 method. The live version runs on the public site or from the downloaded file.</div>
@@ -319,11 +335,12 @@ body.panel-closed #m3d{right:16px}
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-<script src="js/tower.js?v=1794953592"></script>
-<script src="js/data.js?v=1794953592"></script>
-<script src="js/program.js?v=1794953592"></script>
-<script src="js/render.js?v=1794953592"></script>
-<script src="js/map3d.js?v=1794953592"></script>
-<script src="js/ui.js?v=1794953592"></script>
+<script src="js/tower.js?v=1794953987"></script>
+<script src="js/data.js?v=1794953987"></script>
+<script src="js/program.js?v=1794953987"></script>
+<script src="js/render.js?v=1794953987"></script>
+<script src="js/map3d.js?v=1794953987"></script>
+<script src="js/sim1973.js?v=1794953987"></script>
+<script src="js/ui.js?v=1794953987"></script>
 </body>
 </html>
