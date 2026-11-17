@@ -564,8 +564,21 @@ const DATA = (function () {
     }
   }
   async function probe() {
-    try { await getJSON(`${OM}?latitude=${SITE.lat}&longitude=${SITE.lon}&current=temperature_2m`, null, 8000); return true; }
-    catch (e) { return false; }
+    const urls = [`${OM}?latitude=${SITE.lat}&longitude=${SITE.lon}&current=temperature_2m`, 'https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD', 'https://www.seismicportal.eu/fdsnws/event/1/query?format=json&limit=1'];
+    for (let k = 0; k < 3; k++) {
+      const ok = await Promise.any(urls.map(u => getJSON(u, null, 15000))).then(() => true, () => false);
+      if (ok) return true;
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    return false;
+  }
+  function goLive() {
+    mode = 'live';
+    say('TELESCRIPTEURS EN LIGNE');
+    jobs.forEach(j => { run(j); timers.push(setInterval(() => run(j), j[2])); });
+    openStreams(); streamStart = now();
+    if (cfg.radio) startAudio();
+    if (cfg.mic) startMic();
   }
   async function start(opts) {
     Object.assign(cfg, opts || {});
@@ -574,15 +587,11 @@ const DATA = (function () {
     if (!ok) {
       mode = 'sim';
       channels.forEach(c => { c.status = c.id === 'bourse' || c.id === 'metro' ? 'CLÉ' : 'SIMULÉ'; });
-      say('RESEAU INACCESSIBLE DEPUIS CETTE PAGE — TOUTES LIGNES EN SIMULATION (METHODE DE 1973)');
+      say('RESEAU INACCESSIBLE — LIGNES EN SIMULATION (METHODE DE 1973) — NOUVEL ESSAI CHAQUE MINUTE');
+      const retry = setInterval(async () => { if (await probe()) { clearInterval(retry); goLive(); } }, 60000);
       return mode;
     }
-    mode = 'live';
-    say('TELESCRIPTEURS EN LIGNE');
-    jobs.forEach(j => { run(j); timers.push(setInterval(() => run(j), j[2])); });
-    openStreams(); streamStart = now();
-    if (cfg.radio) startAudio();
-    if (cfg.mic) startMic();
+    goLive();
     return mode;
   }
   function refreshKeys() { run(jobs.find(j => j[0] === 'bourse')); run(jobs.find(j => j[0] === 'metro')); }

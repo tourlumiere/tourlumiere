@@ -43,9 +43,9 @@
   // ---------------- loop
   let simT = Date.now(), lastReal = performance.now(), lastTick = -1e12, lastUI = 0, lastSeisT = null, started = false;
   function litCount(OUT) { let k = 0; for (let i = 0; i < OUT.I.length; i++) if (OUT.I[i] > 0.05) k++; return k; }
-  function loop() {
-    const nowp = performance.now(); const dt = (nowp - lastReal); lastReal = nowp;
-    simT += dt * opt.speed;
+  function advance() { const nowp = performance.now(); const dt = (nowp - lastReal); lastReal = nowp; simT += dt * opt.speed; tickIfDue(); }
+  setInterval(advance, 1000); // keeps the programme and the recorder running when the tab is in the background
+  function tickIfDue() {
     if (started && simT - lastTick >= 5000) {
       lastTick = simT;
       const bits = DATA.tick(simT);
@@ -62,6 +62,9 @@
       opt.manualSmoke = false;
       record(simT, bits);
     }
+  }
+  function loop() {
+    advance(); const nowp = performance.now();
     const OUT = PROG.sample(simT);
     if (viewOK) VIEW.frame(OUT, DATA.ctx, S, simT);
     lastLitA = litCount(OUT);
@@ -367,7 +370,7 @@
     DATA.cfg.radio = $('#start-radio').checked; $('#radio').checked = DATA.cfg.radio;
     DATA.cfg.mic = $('#start-mic').checked; $('#mic').checked = DATA.cfg.mic;
     const m = await DATA.start(); started = true; $('#overlay').hidden = true;
-    if (m === 'sim') $('#simnote').hidden = false;
+    if (m === 'sim' && !location.protocol.startsWith('http')) $('#simnote').hidden = false;
   });
   $('#simnote-close').addEventListener('click', () => $('#simnote').hidden = true);
   window.TLC = { REC, analyse, get PB() { return PB; } };
