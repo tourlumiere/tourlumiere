@@ -184,6 +184,7 @@ function makeProg(params) {
   function evaluate(f, x, t, R) {
     const g = f.group; f.evals++;
     let fx = 0; for (let j = 0; j < n; j++) fx += f.A[j] * x[j];
+    f.xs = Float32Array.from(x); // the inputs as they stood when X_i was decided
     let mk = 0; for (let j = 0; j < n; j++) mk += f.A[j] * S.mx[j];
     // K "afin d'obtenir une probabilité de fonctionnement donnée", "éventuellement aléatoire";
     // lowered or raised by the remote environment's general tonality

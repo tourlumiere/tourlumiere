@@ -215,16 +215,20 @@
       <div class="pk-s">à ${hm} m, face ${DIRFR[o.d]}${colNow ? ` · couleur ${colNow}` : ''} · organe n° ${o.id + 1} sur ${tower.organs.length}${picked.which === 'B' ? ' · tour B' : ''}</div>`;
     const on = o.type === 1 ? Math.abs(OUTp ? OUTp.axisSpeed[o.axis] : 0) > 0.01 : I > 0.05;
     h += `<div class="pk-state ${on ? 'on' : ''}">${o.type === 1 ? (on ? `en rotation, ${(Math.abs(OUTp.axisSpeed[o.axis]) * 60 / (2 * Math.PI)).toFixed(1)} tr/min` : 'à l’arrêt') : o.type === 2 ? (on ? 'éclair à cet instant' : 'éteint à cet instant') : (on ? `allumé, ${(I * 100).toFixed(0)} % de puissance` : 'éteint')}</div>`;
+    if (o.type === 1) {
+      const mates = tower.organs.filter(m => m.type === 1 && m.axis === o.axis && m !== o);
+      if (mates.length) h += `<div class="pk-why">Les ${mates.length + 1} miroirs de cet axe partagent un seul moteur : il tourne dès que l’un d’eux est commandé, si bien que la rotation peut venir de la fonction d’un autre miroir du même axe.</div>`;
+    }
     if (!g) { $('#pick-body').innerHTML = h; return; }
     h += `<h4>Groupe</h4><div>centaine ${g.centaine}, classe ${g.cls} · ${g.organs.length} organes tirés au sort ensemble (§ 5.II)</div>`;
     if (g.fn < 0) {
       h += `<div class="pk-why">Ce groupe est <b>au repos</b> : avec la tête de série ${SS.head}, son numéro dépasse p = ${SS.p}. Il ne répond à aucune entrée jusqu’à la prochaine réaffectation.</div>`;
     } else {
-      const f = SS.fns[g.fn], left = Math.max(0, (f.t0 + f.Y * 1000 - simT) / 1000);
-      h += `<h4>Fonction X<sub>${f.i}</sub> = ${f.X}</h4><table class="pk-t"><tr><th>entrée</th><th>A<sub>ij</sub></th><th>x<sub>j</sub></th><th>A·x</th><th></th></tr>`;
-      const rowsT = []; for (let j = 0; j < n; j++) if (f.A[j] > 0) rowsT.push([j, f.A[j], DATA.channels[j].x]);
+      const f = SS.fns[g.fn], left = Math.max(0, (f.t0 + f.Y * 1000 - simT) / 1000), ago = Math.max(0, (simT - f.t0) / 1000);
+      h += `<h4>Fonction X<sub>${f.i}</sub> = ${f.X}</h4><div class="dim">décidée il y a ${ago.toFixed(0)} s, avec les entrées de ce moment-là (valeur actuelle entre parenthèses)</div><table class="pk-t"><tr><th>entrée</th><th>A<sub>ij</sub></th><th>x<sub>j</sub></th><th>A·x</th><th></th></tr>`;
+      const rowsT = []; for (let j = 0; j < n; j++) if (f.A[j] > 0) rowsT.push([j, f.A[j], f.xs ? f.xs[j] : DATA.channels[j].x, DATA.channels[j].x]);
       rowsT.sort((a, b) => b[1] * b[2] - a[1] * a[2]);
-      rowsT.forEach(([j, a, x]) => { const c = DATA.channels[j]; h += `<tr><td>x<sub>${j + 1}</sub> ${c.fr}</td><td>${a.toFixed(2)}</td><td>${x.toFixed(2)}</td><td><b>${(a * x).toFixed(2)}</b></td><td><span class="${stClass(c.status)}">${c.status}</span></td></tr>`; });
+      rowsT.forEach(([j, a, x, xn]) => { const c = DATA.channels[j]; h += `<tr><td>x<sub>${j + 1}</sub> ${c.fr}</td><td>${a.toFixed(2)}</td><td>${x.toFixed(2)} <span class="dim">(${xn.toFixed(2)})</span></td><td><b>${(a * x).toFixed(2)}</b></td><td><span class="${stClass(c.status)}">${c.status}</span></td></tr>`; });
       h += `</table><div>f = ${(f.f + f.K).toFixed(3)} · seuil K = ${f.K.toFixed(3)} (abaissé ou relevé par la tonalité τ = ${SS.tau.toFixed(2)}) · f − K = <b class="${f.f > 0 ? 'pos' : 'neg'}">${f.f >= 0 ? '+' : ''}${f.f.toFixed(3)}</b></div>`;
       if (f.passed) h += `<div>tirage de validation u = ${f.u.toFixed(3)} ${f.u < f.seuil ? '<' : '≥'} ${f.seuil} (régime ${f.reg || SS.regime} au moment du tirage) → ${f.u < f.seuil ? 'validé' : 'refusé'}</div>`;
       else h += `<div>f − K ≤ 0 : la fonction ne fonctionne pas, quel que soit le tirage.</div>`;
@@ -236,7 +240,10 @@
       if (!SS.night && (o.type >= 5 && o.type <= 7)) why.push('de jour, gros projecteurs et lasers débranchés (p. 100)');
       if (o.type === 4 && SS.regime === 'bleu') why.push('régime bleu : projecteurs à obturateurs éteints (annexe 3)');
       if (colNow && SS.regime === 'bleu' && colNow === 'rouge') why.push('régime bleu : sorties rouges bloquées, B_i = max (organigramme)');
+      if (colNow && SS.regime === 'bleu' && (colNow === 'orange' || colNow === 'violet')) why.push('régime bleu : priorité aux bleus, blancs et jaunes, cette couleur à 30 % (lecture de la p. 114)');
       if (colNow && SS.regime === 'rouge' && colNow === 'bleu') why.push('régime rouge : sorties bleues bloquées, B_i = max (organigramme)');
+      if (colNow && SS.regime === 'rouge' && (colNow === 'jaune' || colNow === 'blanc')) why.push('régime rouge : dominante rouge, cette couleur atténuée (lecture de la p. 114)');
+      if (o.type !== 2 && o.type !== 1) why.push(`plafond d’intensité du régime ${SS.regime} : ${({ bleu: 60, normal: 75, rouge: 90 })[SS.regime]} % (annexe 1)`);
       if (SS.special) why.push(SS.special.kind === 'meteo' ? 'langage conventionnel : annonce météo en cours' : 'langage conventionnel : signal de circulation en cours');
       if (SS.vanish) why.push('tour disparue dans la fumée');
       if (SS.antagonist) why.push(`flashes antagonistes (${SS.antagonist.kind})`);
