@@ -370,7 +370,7 @@
     DATA.cfg.radio = $('#start-radio').checked; $('#radio').checked = DATA.cfg.radio;
     DATA.cfg.mic = $('#start-mic').checked; $('#mic').checked = DATA.cfg.mic;
     const m = await DATA.start(); started = true; $('#overlay').hidden = true;
-    if (m === 'sim' && !location.protocol.startsWith('http')) $('#simnote').hidden = false;
+    if (m === 'sim' && !/github\.io$/.test(location.hostname)) $('#simnote').hidden = false;
   });
   $('#simnote-close').addEventListener('click', () => $('#simnote').hidden = true);
   window.TLC = { REC, analyse, get PB() { return PB; } };
