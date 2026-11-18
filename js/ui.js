@@ -577,10 +577,25 @@
   // ---------------- top-left readings: the basic inputs at a glance
   const RD = [
     ['time', 'Nanterre', 'Nanterre'], ['thermo', 'Température', 'Temperature'], ['vent10', 'Vent au sol', 'Wind, ground'], ['vent180', 'Vent à 180 m', 'Wind, 180 m'],
-    ['circulation', 'Circulation', 'Traffic'], ['micro', 'Bruit', 'Noise'], ['sun', 'Soleil', 'Sun'], ['telephone', 'Bluesky (fr)', 'Bluesky (fr)']
+    ['circulation', 'Circulation', 'Traffic'], ['micro', 'Bruit', 'Noise'], ['sun', 'Soleil', 'Sun'], ['rise', 'Lever du soleil', 'Sunrise'], ['set', 'Coucher', 'Sunset'], ['telephone', 'Bluesky (fr)', 'Bluesky (fr)']
   ];
   $('#readings').innerHTML = RD.map(([k]) => `<div class="rd" data-k="${k}"><span class="rk"><i></i><em></em></span><b></b></div>`).join('');
   const nameReadings = () => RD.forEach(([k, fr, en]) => $(`#readings [data-k="${k}"] em`).textContent = T(fr, en)); nameReadings(); I18N.on(nameReadings);
+  // sunrise and sunset at the site: altitude crossing −0.833° (refraction and the sun's radius), found by scanning the day
+  const sunDays = {};
+  function sunTimes(t) {
+    const key = new Date(t).toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
+    if (sunDays[key]) return sunDays[key];
+    const d0 = Date.parse(key + 'T00:00:00Z') - 2 * 3600000, alt = s => DATA.sunPosition(s, DATA.SITE.lat, DATA.SITE.lon).alt + 0.833;
+    let rise = null, set = null, prev = alt(d0);
+    for (let s = d0 + 120000; s <= d0 + 26 * 3600000; s += 120000) {
+      const a = alt(s);
+      if (prev < 0 && a >= 0 && rise == null) { let lo = s - 120000, hi = s; for (let k = 0; k < 12; k++) { const m = (lo + hi) / 2; alt(m) < 0 ? lo = m : hi = m; } rise = hi; }
+      if (prev >= 0 && a < 0 && rise != null && set == null) { let lo = s - 120000, hi = s; for (let k = 0; k < 12; k++) { const m = (lo + hi) / 2; alt(m) >= 0 ? lo = m : hi = m; } set = hi; }
+      prev = a;
+    }
+    return (sunDays[key] = { rise, set });
+  }
   function updateReadings() {
     const C = DATA.byId, x = DATA.ctx, set = (k, v, ok, tip) => { const el = $(`#readings [data-k="${k}"]`); el.querySelector('b').textContent = v; el.classList.toggle('sim', !ok); el.title = tip || ''; };
     const ok = id => LIVE_ST.includes(C[id].status), tip = id => `${I18N.chName(C[id])} · ${I18N.st(C[id].status)} · ${I18N.chSrc(C[id])}`;
@@ -591,6 +606,9 @@
     set('circulation', C.circulation.raw != null ? `${Math.round(C.circulation.raw)} ${T('véh/h', 'veh/h')}` : '—', ok('circulation'), tip('circulation') + T(' · relevés de la veille, même heure', ' · yesterday’s counts, same hour'));
     set('micro', C.micro.raw != null ? `${(+C.micro.raw).toFixed(0)} dB` : '—', ok('micro'), tip('micro'));
     const alt = x.sun ? x.sun.alt : 0; set('sun', `${alt > 0 ? '↑' : '↓'} ${alt.toFixed(0)}°${alt < -6 ? T(' · nuit', ' · night') : alt < 6 ? T(' · crépuscule', ' · twilight') : ''}`, true, T('hauteur du soleil au-dessus de La Défense', 'sun height above La Défense'));
+    const st2 = sunTimes(simT), hm = v => v ? new Date(v).toLocaleTimeString(LOC(), { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' }) : '—';
+    set('rise', hm(st2.rise), true, T('calculé pour le site, heure de Paris', 'calculated for the site, Paris time'));
+    set('set', hm(st2.set), true, T('calculé pour le site, heure de Paris', 'calculated for the site, Paris time'));
     set('telephone', C.telephone.raw != null ? `${(+C.telephone.raw).toFixed(0)}/min` : '—', ok('telephone'), tip('telephone'));
   }
 
@@ -598,10 +616,12 @@
   const lblBox = $('#blabels');
   const lblEls = (VIEW.defLabels || []).map(L => { const d = document.createElement('div'); d.className = 'bl ' + L.kind; lblBox.appendChild(d); return { L, d }; });
   const nameLabels = () => lblEls.forEach(({ L, d }) => {
-    if (L.kind === 'cnit') d.innerHTML = T(`<b>C.N.I.T.</b> · 1958<span>Palais d’exposition de Camelot, de Mailly et Zehrfuss, ingénieur Nicolas Esquillan. Une voûte de béton à double coque, posée sur trois appuis distants de 218 m, haute de 46 m ; façades vitrées de Jean Prouvé. Premier bâtiment de La Défense : la maquette de 1963 plaçait la tour juste devant.</span>`,
-      `<b>C.N.I.T.</b> · 1958<span>Exhibition hall by Camelot, de Mailly and Zehrfuss, engineer Nicolas Esquillan. A double-shelled concrete vault resting on three supports 218 m apart, 46 m high at the crown; glass façades by Jean Prouvé. The first building at La Défense: the 1963 maquette set the tower directly in front of it.</span>`);
+    if (L.kind === 'cnit') d.innerHTML = `<b>C.N.I.T.</b> <i>1958 · 46 m</i> <button class="more">${cnitOpen ? T('réduire', 'less') : T('en savoir plus', 'read more')}</button><span>` + T(`Palais d’exposition de Camelot, de Mailly et Zehrfuss, ingénieur Nicolas Esquillan. Une voûte de béton à double coque, posée sur trois appuis distants de 218 m, haute de 46 m ; façades vitrées de Jean Prouvé. Premier bâtiment de La Défense : la maquette de 1963 plaçait la tour juste devant.`,
+      `Exhibition hall by Camelot, de Mailly and Zehrfuss, engineer Nicolas Esquillan. A double-shelled concrete vault resting on three supports 218 m apart, 46 m high at the crown; glass façades by Jean Prouvé. The first building at La Défense: the 1963 maquette set the tower directly in front of it.`) + '</span>';
     else d.innerHTML = `${L.t.n} <i>${L.t.y} · ${L.t.h} m${L.t.now ? ` · ${T('auj.', 'now')} ${L.t.now}` : ''}</i>`;
   });
+  let cnitOpen = false;
+  lblBox.addEventListener('click', e => { if (!e.target.classList.contains('more')) return; cnitOpen = !cnitOpen; lblEls.forEach(({ L, d }) => { if (L.kind === 'cnit') d.classList.toggle('full', cnitOpen); }); nameLabels(); });
   nameLabels(); I18N.on(nameLabels);
   let showLabels = store.get('blabels', true);
   const lblBtn = () => { $('#bl-toggle').classList.toggle('on', showLabels); lblBox.hidden = !showLabels; }; lblBtn();
@@ -614,7 +634,6 @@
       const far = L.kind === 'cnit' ? p.d > 6000 : p.d > 4500 || p.d < 300;
       if (!p.vis || far || compare) { d.style.display = 'none'; return; }
       d.style.display = '';
-      if (L.kind === 'cnit') d.classList.toggle('full', p.d < 2600);
       const w = d.offsetWidth || 80, h = d.offsetHeight || 14, r = { x0: p.x - w / 2, x1: p.x + w / 2, y0: p.y - h, y1: p.y };
       if (placed.some(q => r.x0 < q.x1 && r.x1 > q.x0 && r.y0 < q.y1 && r.y1 > q.y0)) { d.style.display = 'none'; return; }
       placed.push(r); d.style.transform = `translate(${(p.x - w / 2).toFixed(0)}px, ${(p.y - h).toFixed(0)}px)`;
