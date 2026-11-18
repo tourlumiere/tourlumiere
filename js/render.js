@@ -13,7 +13,7 @@ function makeView(sharedCam, opts) {
   let lightColAttr, lightIAttr, lightSizeAttr;
   const SMOKE_N = 5000; let smokeHead = 0; const smokeVel = new Float32Array(SMOKE_N * 3), smokeLife = new Float32Array(SMOKE_N), smokeAge = new Float32Array(SMOKE_N);
   const GROUND = -29; // socle 29 m high (p. 48)
-  let hasBloom = false;
+  let hasBloom = false, sunGlow = 0, bloomE = 0;
 
   function init(el, tower) {
     T = tower; canvas = el;
@@ -263,7 +263,8 @@ function makeView(sharedCam, opts) {
     const sunDir = new THREE.Vector3(Math.sin(azr) * Math.cos(altr), Math.sin(altr), -Math.cos(azr) * Math.cos(altr)); // az from north, clockwise; +x east, +z south
     sky.material.uniforms.uSunDir.value.copy(sunDir);
     sun.position.copy(sunDir).multiplyScalar(1000); sun.intensity = dl * (1 - cl * 0.6) * 0.9;
-    sky.material.uniforms.uSunCol.value.setRGB(1, 0.75 + 0.2 * Math.min(1, Math.max(0, alt / 20)), 0.45 + 0.45 * Math.min(1, Math.max(0, alt / 20))).multiplyScalar(1 - cl * 0.7);
+    sunGlow = sm(-7, 1, alt); // the glow fades as the sun sinks below the horizon
+    sky.material.uniforms.uSunCol.value.setRGB(1, 0.75 + 0.2 * Math.min(1, Math.max(0, alt / 20)), 0.45 + 0.45 * Math.min(1, Math.max(0, alt / 20))).multiplyScalar((1 - cl * 0.7) * (0.25 + 0.75 * sunGlow));
     hemi.intensity = 0.12 + 0.75 * dl;
     stars.material.opacity = Math.max(0, 1 - dl * 3) * (1 - cl * 0.85);
     cityPts.material.opacity = 0.9 * Math.max(0.05, 1 - dl * 1.6);
@@ -347,7 +348,17 @@ function makeView(sharedCam, opts) {
     stepSmoke(OUT, ctx, dt, dl);
 
     if (marker && marker.visible) { const s = 0.03 + 0.008 * Math.sin(nowp / 180); marker.scale.set(s, s, 1); }
-    if (hasBloom) { bloom.strength = 0.2 + 1.2 * (1 - dl); bloom.threshold = 0.12 + 0.78 * dl; composer.render(); } else renderer.render(scene, camera);
+    if (hasBloom) {
+      // the glow must stay above the brightness of the sky itself, or a twilight horizon blooms into a white wash
+      const H = SC.hor, lumHor = 0.2126 * H[0] + 0.7152 * H[1] + 0.0722 * H[2], glow = sunGlow * (1 - cl * 0.7);
+      const skyL = Math.min(1, lumHor + glow * 0.5);
+      bloom.threshold = Math.max(0.12 + 0.78 * dl, skyL + 0.12);
+      let E = 0; for (let i = 0; i < OUT.I.length; i += 4) E += OUT.I[i]; E = E * 4 / Math.max(1, OUT.I.length); // share of light in play
+      bloomE += (E - bloomE) * 0.05;                                                                               // eased, so the glow does not pump
+      bloom.strength = (0.2 + 1.2 * (1 - dl)) * (1 - 0.75 * Math.min(1, skyL * 1.6)) / (1 + 4 * bloomE);
+      bloom.threshold += 0.25 * Math.min(1, bloomE * 2);
+      composer.render();
+    } else renderer.render(scene, camera);
   }
 
   // sky by solar altitude and cloud cover: night, civil/nautical twilight, day (clear blue to overcast grey)
