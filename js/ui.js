@@ -572,6 +572,7 @@
     if (!$('#tab-analyse').hidden) $('#rec-count').textContent = T(`${REC.rows.length} relevés · ${REC.events.length} événements`, `${REC.rows.length} readings · ${REC.events.length} events`);
     $('#live-count').textContent = T(`${DATA.channels.filter(c => LIVE_ST.includes(c.status)).length} / ${n} lignes réelles`, `${DATA.channels.filter(c => LIVE_ST.includes(c.status)).length} / ${n} lines live`);
     updateReadings();
+    SOUND.tick(S);
   }
 
   // ---------------- top-left readings: the basic inputs at a glance
@@ -639,6 +640,15 @@
       placed.push(r); d.style.transform = `translate(${(p.x - w / 2).toFixed(0)}px, ${(p.y - h).toFixed(0)}px)`;
     });
   }
+
+  // keep the legend just above the view buttons, however many rows they wrap into
+  const fitLegend = () => document.documentElement.style.setProperty('--vh', $('#views').offsetHeight + 'px');
+  window.addEventListener('resize', fitLegend); setInterval(fitLegend, 1000); fitLegend();
+
+  // ---------------- sound, after the tape loops of Saint-Cloud and Liège (off by default)
+  const sndBtn = () => $('#snd-toggle').classList.toggle('on', SOUND.on);
+  $('#snd-toggle').addEventListener('click', () => { SOUND.on ? SOUND.stop() : SOUND.start(); sndBtn(); });
+  $('#snd-vol').addEventListener('input', e => SOUND.setVolume(+e.target.value));
 
   // ---------------- settings
   $('#av-key').value = DATA.cfg.avKey; $('#av-sym').value = DATA.cfg.avSymbol; $('#prim-key').value = DATA.cfg.primKey;
