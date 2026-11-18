@@ -4,6 +4,7 @@
 (function () {
   'use strict';
   const $ = s => document.querySelector(s), $$ = s => Array.from(document.querySelectorAll(s));
+  const T = I18N.T, tx = I18N.tx, LOC = () => I18N.locale();
   const tower = TOWER.build(1973);
   const n = DATA.channels.length;
   const remoteIdx = DATA.channels.map((c, i) => c.grp === 'lointain' ? i : -1).filter(i => i >= 0);
@@ -19,11 +20,11 @@
   Object.assign(DATA.cfg, { avKey: store.get('avKey', ''), avSymbol: store.get('avSymbol', 'EWQ'), primKey: store.get('primKey', '') });
 
   const counts = {}; tower.organs.forEach(o => counts[o.type] = (counts[o.type] || 0) + 1);
-  $('#count-total').textContent = tower.organs.filter(o => o.type <= 7).length.toLocaleString('fr-FR');
+  const setTotal = () => $('#count-total').textContent = tower.organs.filter(o => o.type <= 7).length.toLocaleString(LOC()); setTotal(); I18N.on(setTotal);
 
   // ---------------- 3D
   let viewOK = true;
-  try { VIEW.init($('#view'), tower); } catch (e) { viewOK = false; $('#view-error').hidden = false; $('#view-error').textContent = 'WebGL indisponible : ' + e.message; }
+  try { VIEW.init($('#view'), tower); } catch (e) { viewOK = false; $('#view-error').hidden = false; $('#view-error').textContent = T('WebGL indisponible : ', 'WebGL unavailable: ') + e.message; }
 
   // ---------------- recorder (always on, in memory)
   const REC = { rows: [], events: [], max: 30000, seen: new WeakSet() };
@@ -71,6 +72,7 @@
     lastLitA = litCount(OUT);
     if (PB && VB) { const OB = PB.sample(simT); lastOUTB = OB; VB.frame(OB, DATA.ctx, PB.S, simT); lastLitB = litCount(OB); }
     if (overlayOn) placeOverlay();
+    placeLabels();
     if (nowp - lastUI > 500) { lastUI = nowp; updateUI(OUT); }
     teletypeStep();
     requestAnimationFrame(loop);
@@ -90,19 +92,26 @@
   const rows = {};
   DATA.channels.forEach((c, j) => {
     const r = document.createElement('div'); r.className = 'srow';
-    r.innerHTML = `<div class="sname"><span class="j">x<sub>${j + 1}</sub></span> ${c.fr}<small>${c.en}</small></div>
+    r.innerHTML = `<div class="sname"><span class="j">x<sub>${j + 1}</sub></span> <span class="nm"></span><small></small></div>
       <div class="sval"></div><div class="sbar"><i></i></div><span class="badge"></span>
-      <canvas class="spark" width="120" height="22"></canvas><div class="ssrc">${c.url ? `<a href="${c.url}" target="_blank" rel="noopener">${c.src}</a>` : c.src}<span class="snote"></span></div>`;
+      <canvas class="spark" width="120" height="22"></canvas><div class="ssrc"><span class="sr"></span><span class="snote"></span></div>`;
     sensBox[c.grp].appendChild(r); rows[c.id] = r;
   });
+  function nameSensors() {
+    DATA.channels.forEach(c => {
+      const r = rows[c.id]; r.querySelector('.nm').textContent = I18N.chName(c); r.querySelector('small').textContent = I18N.lang === 'fr' ? c.en : c.fr;
+      const s = I18N.chSrc(c); r.querySelector('.sr').innerHTML = c.url ? `<a href="${c.url}" target="_blank" rel="noopener">${s}</a>` : s;
+    });
+  }
+  nameSensors(); I18N.on(() => { nameSensors(); updateSensors(); });
   const stClass = s => 'badge st-' + s.normalize('NFD').replace(/[^A-Za-z]/g, '');
   function updateSensors() {
     DATA.channels.forEach(c => {
       const r = rows[c.id];
-      r.querySelector('.sval').textContent = c.display;
+      r.querySelector('.sval').textContent = tx(c.display);
       r.querySelector('.sbar i').style.width = (c.x * 100).toFixed(0) + '%';
-      const b = r.querySelector('.badge'); b.textContent = c.status; b.className = stClass(c.status);
-      r.querySelector('.snote').textContent = c.note ? ' — ' + c.note : '';
+      const b = r.querySelector('.badge'); b.textContent = I18N.st(c.status); b.className = stClass(c.status);
+      r.querySelector('.snote').textContent = c.note ? ' — ' + tx(c.note) : '';
       const cv = r.querySelector('.spark'), g = cv.getContext('2d'); g.clearRect(0, 0, 120, 22);
       const h = c.hist.slice(-120); if (h.length < 2) return;
       g.strokeStyle = '#d9c7a0'; g.lineWidth = 1; g.beginPath();
@@ -111,8 +120,12 @@
   }
 
   // ---------------- programme
-  const BIT_LABELS = ['bruit 1', 'bruit 2', 'bruit 3', 'bruit 4', 'vent 10 m', 'vent 80 m', 'vent 120 m', 'vent 180 m', 'circul. 1', 'circul. 2'];
-  BIT_LABELS.forEach(l => { const d = document.createElement('div'); d.className = 'bit'; d.innerHTML = `<i></i><span>${l}</span>`; $('#bits').appendChild(d); });
+  const BL_FR = ['bruit 1', 'bruit 2', 'bruit 3', 'bruit 4', 'vent 10 m', 'vent 80 m', 'vent 120 m', 'vent 180 m', 'circul. 1', 'circul. 2'];
+  const BL_EN = ['noise 1', 'noise 2', 'noise 3', 'noise 4', 'wind 10 m', 'wind 80 m', 'wind 120 m', 'wind 180 m', 'traffic 1', 'traffic 2'];
+  let BIT_LABELS = BL_FR;
+  BL_FR.forEach(l => { const d = document.createElement('div'); d.className = 'bit'; d.innerHTML = `<i></i><span></span>`; $('#bits').appendChild(d); });
+  const nameBits = () => { BIT_LABELS = I18N.lang === 'fr' ? BL_FR : BL_EN; $$('#bits .bit span').forEach((s, i) => s.textContent = BIT_LABELS[i]); };
+  nameBits(); I18N.on(nameBits);
   const TYPE_COL = { 1: '#9fb3c8', 2: '#f4f1e8', 3: '#e2a03f', 4: '#c77dff', 5: '#ffffff', 6: '#f6d860', 7: '#ff5a4e', 8: '#8a8a8a' };
   let hoverFn = null;
   const gcv = $('#groups'), gctx = gcv.getContext('2d'); const GC = 24;
@@ -122,10 +135,10 @@
   });
   gcv.addEventListener('mouseleave', () => hoverFn = null);
   function updateProgramme() {
-    $('#reg-name').textContent = S.regime.toUpperCase(); $('#reg-name').className = 'reg-' + S.regime;
+    $('#reg-name').textContent = tx(S.regime).toUpperCase(); $('#reg-name').className = 'reg-' + S.regime;
     $('#reg-D').textContent = S.D; $('#reg-tau').textContent = S.tau.toFixed(2);
     $('#reg-seuil').textContent = (PROG.REGIME[S.regime].seuil * 100) + ' %';
-    $('#pq').textContent = `${S.p} fonctions X_i · ${S.q} groupes (${S.centaines.length} centaines × ≤5 classes) · tête de série ${S.head}`;
+    $('#pq').textContent = T(`${S.p} fonctions X_i · ${S.q} groupes (${S.centaines.length} centaines × ≤5 classes) · tête de série ${S.head}`, `${S.p} functions X_i · ${S.q} groups (${S.centaines.length} hundreds × ≤5 classes) · head number ${S.head}`);
     const bits = DATA.ctx.regimeBits; $$('#bits .bit').forEach((d, i) => d.classList.toggle('on', !!bits[i]));
     const fc = $('#fig1'), f = fc.getContext('2d'); const W = fc.width, H = fc.height; f.clearRect(0, 0, W, H);
     const hist = S.hist.bits, rowsN = 10, rh = H / rowsN;
@@ -143,21 +156,21 @@
       if (fn && hoverFn === fn) { gctx.strokeStyle = '#fff'; gctx.strokeRect(x + 0.5, y + 0.5, cw - 1, cw - 1); }
     });
     const act = {}; S.fns.forEach(fn => { if (fn.group && fn.X) act[fn.group.type] = (act[fn.group.type] || 0) + fn.group.organs.length; });
-    $('#types').innerHTML = Object.keys(PROG.TYPE_NAMES).map(t => `<div><i style="background:${TYPE_COL[t]}"></i>${t}) ${PROG.TYPE_NAMES[t]} <b>${act[t] || 0}</b>/${counts[t]}</div>`).join('');
+    $('#types').innerHTML = Object.keys(PROG.TYPE_NAMES).map(t => `<div><i style="background:${TYPE_COL[t]}"></i>${t}) ${tx(PROG.TYPE_NAMES[t])} <b>${act[t] || 0}</b>/${counts[t]}</div>`).join('');
     const fn = hoverFn || S.lastEval; if (!fn || !fn.group) return;
     const g = fn.group; const terms = [];
-    for (let j = 0; j < n; j++) if (fn.A[j] > 0) terms.push(`<tr><td>x<sub>${j + 1}</sub></td><td>${DATA.channels[j].fr}</td><td>${fn.A[j].toFixed(2)}</td><td>${DATA.channels[j].x.toFixed(2)}</td></tr>`);
-    $('#insp').innerHTML = `<div class="ih">X<sub>${fn.i}</sub> → centaine ${g.centaine}, classe ${g.cls} · ${PROG.TYPE_NAMES[g.type]} · N<sub>i</sub> = ${g.organs.length}</div>
-      <table><tr><th></th><th>entrée</th><th>A<sub>ij</sub></th><th>x<sub>j</sub></th></tr>${terms.join('')}</table>
+    for (let j = 0; j < n; j++) if (fn.A[j] > 0) terms.push(`<tr><td>x<sub>${j + 1}</sub></td><td>${I18N.chName(DATA.channels[j])}</td><td>${fn.A[j].toFixed(2)}</td><td>${DATA.channels[j].x.toFixed(2)}</td></tr>`);
+    $('#insp').innerHTML = `<div class="ih">X<sub>${fn.i}</sub> → ${T('centaine', 'hundred')} ${g.centaine}, ${T('classe', 'class')} ${g.cls} · ${tx(PROG.TYPE_NAMES[g.type])} · N<sub>i</sub> = ${g.organs.length}</div>
+      <table><tr><th></th><th>${T('entrée', 'input')}</th><th>A<sub>ij</sub></th><th>x<sub>j</sub></th></tr>${terms.join('')}</table>
       <div class="ieq">f = Σ A<sub>ij</sub>x<sub>j</sub> = ${(fn.f + fn.K).toFixed(3)} · K = ${fn.K.toFixed(3)} · f − K = <b class="${fn.f > 0 ? 'pos' : 'neg'}">${fn.f >= 0 ? '+' : ''}${fn.f.toFixed(3)}</b></div>
-      <div class="ieq">${fn.passed ? `tirage u = ${fn.u.toFixed(3)} ${fn.u < fn.seuil ? '<' : '≥'} ${fn.seuil} → ` : ''}X<sub>${fn.i}</sub> = <b>${fn.X}</b> · Y<sub>i</sub> = ${fn.Y.toFixed(1)} s · θ<sub>i</sub> = Y/N = ${fn.theta.toFixed(2)} s${fn.lively ? ' · tirage orienté' : ''}</div>
-      ${fn.X ? `<div class="ieq">mode n° ${fn.mode.id} / 50 : <i>${fn.mode.name}</i></div>` : ''}`;
+      <div class="ieq">${fn.passed ? `${T('tirage', 'draw')} u = ${fn.u.toFixed(3)} ${fn.u < fn.seuil ? '<' : '≥'} ${fn.seuil} → ` : ''}X<sub>${fn.i}</sub> = <b>${fn.X}</b> · Y<sub>i</sub> = ${fn.Y.toFixed(1)} s · θ<sub>i</sub> = Y/N = ${fn.theta.toFixed(2)} s${fn.lively ? T(' · tirage orienté', ' · biased draw') : ''}</div>
+      ${fn.X ? `<div class="ieq">mode ${T('n°', 'no.')} ${fn.mode.id} / 50 : <i>${tx(fn.mode.name)}</i></div>` : ''}`;
   }
 
   // ---------------- abacus
   function updateAbacus() {
     const cv = $('#abacus'), g = cv.getContext('2d'), W = cv.width, H = cv.height; g.clearRect(0, 0, W, H);
-    const rods = [['repetition', 'répétition'], ['saturation', 'saturation'], ['stagnation', 'stagnation'], ['accident', 'perturbations accidentelles']];
+    const rods = [['repetition', T('répétition', 'repetition')], ['saturation', 'saturation'], ['stagnation', 'stagnation'], ['accident', T('perturbations accidentelles', 'accidental perturbations')]];
     g.strokeStyle = '#6d5a3c'; g.lineWidth = 6; g.strokeRect(6, 6, W - 12, H - 12);
     rods.forEach(([k, label], r) => {
       const y = 52 + r * (H - 60) / 4; g.strokeStyle = '#8a7a5c'; g.lineWidth = 2; g.beginPath(); g.moveTo(14, y); g.lineTo(W - 14, y); g.stroke();
@@ -167,14 +180,14 @@
         g.fillStyle = right ? (k === 'accident' ? '#c9a24a' : '#d4553f') : '#4a3f30';
         g.beginPath(); g.ellipse(x, y, 13, 15, 0, 0, Math.PI * 2); g.fill();
       }
-      g.fillStyle = '#cfc4ad'; g.font = '19px IBM Plex Mono, monospace'; g.fillText(`${label} · ${v}${tens ? ' (dizaines : ' + tens + ')' : ''}`, 22, y - 21);
+      g.fillStyle = '#cfc4ad'; g.font = '19px IBM Plex Mono, monospace'; g.fillText(`${label} · ${v}${tens ? T(' (dizaines : ', ' (tens: ') + tens + ')' : ''}`, 22, y - 21);
     });
     const ev = S.events.filter(e => /INDIFFÉRENCE|ACCIDENTELLE|DISPARITION|RÉAPPARITION/.test(e.s)).slice(-12).reverse();
-    $('#indiff-log').innerHTML = ev.map(e => `<div><time>${new Date(e.t).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris' })}</time> ${e.s}</div>`).join('') || '<div class="dim">aucune intervention pour l’instant</div>';
+    $('#indiff-log').innerHTML = ev.map(e => `<div><time>${new Date(e.t).toLocaleTimeString(LOC(), { timeZone: 'Europe/Paris' })}</time> ${tx(e.s)}</div>`).join('') || `<div class="dim">${T('aucune intervention pour l’instant', 'no intervention so far')}</div>`;
     const ac = $('#actchart'), a = ac.getContext('2d'); a.clearRect(0, 0, ac.width, ac.height);
     const draw = (h, col) => { a.strokeStyle = col; a.lineWidth = 2; a.beginPath(); h.forEach((v, i) => { const x = i / 239 * ac.width, y = ac.height - v * ac.height; i ? a.lineTo(x, y) : a.moveTo(x, y); }); a.stroke(); };
     draw(S.hist.act, '#e2a03f'); if (PB) draw(PB.S.hist.act, '#79b8d9');
-    a.fillStyle = '#8c8577'; a.font = '17px IBM Plex Mono, monospace'; a.fillText('part des groupes commandés, X = 1 (20 min)' + (PB ? ' · A orange, B bleu' : ''), 8, 20);
+    a.fillStyle = '#8c8577'; a.font = '17px IBM Plex Mono, monospace'; a.fillText(T('part des groupes commandés, X = 1 (20 min)', 'share of groups commanded, X = 1 (20 min)') + (PB ? T(' · A orange, B bleu', ' · A orange, B blue') : ''), 8, 20);
   }
 
   // ---------------- schema
@@ -205,51 +218,52 @@
     const o = tower.organs[picked.id];
     const g = SS.groups.find(gr => gr.organs.indexOf(o) >= 0);
     const hm = (o.p[1]).toFixed(0);
-    let what = PROG.TYPE_NAMES[o.type];
-    if (o.type === 2) what += o.laserFlash ? ' — flash laser de 10 MW au sommet' : o.big ? ' — flash de grande puissance' : ' — petit flash';
-    if (o.type === 4) what += ` — obturateur trichrome ${o.trio.join(' / ')}, moteur ${o.motor} tr/min`;
-    if (o.type === 5 || o.type === 6) what += o.summit ? ' — au sommet, faisceau de 2 km' : ' — en bout de bras, faisceau de 2 km';
-    if (o.type === 7) what += ` — renvoyé par un miroir de l’axe n° ${o.target.ax + 1}`;
-    if (o.type === 1) what += ` — axe n° ${o.axis + 1}, groupe de vitesse « ${o.speed} »`;
+    const DIRS = T('est sud ouest nord', 'east south west north').split(' ');
+    let what = tx(PROG.TYPE_NAMES[o.type]);
+    if (o.type === 2) what += o.laserFlash ? T(' — flash laser de 10 MW au sommet', ' — 10 MW laser flash at the summit') : o.big ? T(' — flash de grande puissance', ' — high-power flash') : T(' — petit flash', ' — small flash');
+    if (o.type === 4) what += T(` — obturateur trichrome ${o.trio.join(' / ')}, moteur ${o.motor} tr/min`, ` — three-colour shutter ${o.trio.map(tx).join(' / ')}, motor ${o.motor} rpm`);
+    if (o.type === 5 || o.type === 6) what += o.summit ? T(' — au sommet, faisceau de 2 km', ' — at the summit, 2 km beam') : T(' — en bout de bras, faisceau de 2 km', ' — at the end of an arm, 2 km beam');
+    if (o.type === 7) what += T(` — renvoyé par un miroir de l’axe n° ${o.target.ax + 1}`, ` — returned by a mirror on axis no. ${o.target.ax + 1}`);
+    if (o.type === 1) what += T(` — axe n° ${o.axis + 1}, groupe de vitesse « ${o.speed} »`, ` — axis no. ${o.axis + 1}, “${({ lent: 'slow', moyen: 'medium', rapide: 'fast' })[o.speed] || o.speed}” speed group`);
     const I = OUTp ? OUTp.I[o.id] : 0;
     const colNow = OUTp && OUTp.colour[o.id] !== 255 ? COLFR[OUTp.colour[o.id]] : o.colour;
     let h = `<div class="pk-h">${what}</div>
-      <div class="pk-s">à ${hm} m, face ${DIRFR[o.d]}${colNow ? ` · couleur ${colNow}` : ''} · organe n° ${o.id + 1} sur ${tower.organs.length}${picked.which === 'B' ? ' · tour B' : ''}</div>`;
+      <div class="pk-s">${T('à', 'at')} ${hm} m, ${T('face', 'facing')} ${DIRS[o.d]}${colNow ? ` · ${T('couleur', 'colour')} ${tx(colNow)}` : ''} · ${T('organe n°', 'organ no.')} ${o.id + 1} ${T('sur', 'of')} ${tower.organs.length}${picked.which === 'B' ? T(' · tour B', ' · tower B') : ''}</div>`;
     const on = o.type === 1 ? Math.abs(OUTp ? OUTp.axisSpeed[o.axis] : 0) > 0.01 : I > 0.05;
-    h += `<div class="pk-state ${on ? 'on' : ''}">${o.type === 1 ? (on ? `en rotation, ${(Math.abs(OUTp.axisSpeed[o.axis]) * 60 / (2 * Math.PI)).toFixed(1)} tr/min` : 'à l’arrêt') : o.type === 2 ? (on ? 'éclair à cet instant' : 'éteint à cet instant') : (on ? `allumé, ${(I * 100).toFixed(0)} % de puissance` : 'éteint')}</div>`;
+    h += `<div class="pk-state ${on ? 'on' : ''}">${o.type === 1 ? (on ? T(`en rotation, ${(Math.abs(OUTp.axisSpeed[o.axis]) * 60 / (2 * Math.PI)).toFixed(1)} tr/min`, `turning, ${(Math.abs(OUTp.axisSpeed[o.axis]) * 60 / (2 * Math.PI)).toFixed(1)} rpm`) : T('à l’arrêt', 'stopped')) : o.type === 2 ? (on ? T('éclair à cet instant', 'flashing at this instant') : T('éteint à cet instant', 'dark at this instant')) : (on ? T(`allumé, ${(I * 100).toFixed(0)} % de puissance`, `on, ${(I * 100).toFixed(0)}% power`) : T('éteint', 'off'))}</div>`;
     if (o.type === 1) {
       const mates = tower.organs.filter(m => m.type === 1 && m.axis === o.axis && m !== o);
-      if (mates.length) h += `<div class="pk-why">Les ${mates.length + 1} miroirs de cet axe partagent un seul moteur : il tourne dès que l’un d’eux est commandé, si bien que la rotation peut venir de la fonction d’un autre miroir du même axe.</div>`;
+      if (mates.length) h += `<div class="pk-why">${T(`Les ${mates.length + 1} miroirs de cet axe partagent un seul moteur : il tourne dès que l’un d’eux est commandé, si bien que la rotation peut venir de la fonction d’un autre miroir du même axe.`, `The ${mates.length + 1} mirrors on this axis share one motor: it turns as soon as any of them is commanded, so the rotation may come from the function of another mirror on the same axis.`)}</div>`;
     }
     if (!g) { $('#pick-body').innerHTML = h; return; }
-    h += `<h4>Groupe</h4><div>centaine ${g.centaine}, classe ${g.cls} · ${g.organs.length} organes tirés au sort ensemble (§ 5.II)</div>`;
+    h += `<h4>${T('Groupe', 'Group')}</h4><div>${T(`centaine ${g.centaine}, classe ${g.cls} · ${g.organs.length} organes tirés au sort ensemble (§ 5.II)`, `hundred ${g.centaine}, class ${g.cls} · ${g.organs.length} organs drawn by lot together (§ 5.II)`)}</div>`;
     if (g.fn < 0) {
-      h += `<div class="pk-why">Ce groupe est <b>au repos</b> : avec la tête de série ${SS.head}, son numéro dépasse p = ${SS.p}. Il ne répond à aucune entrée jusqu’à la prochaine réaffectation.</div>`;
+      h += `<div class="pk-why">${T(`Ce groupe est <b>au repos</b> : avec la tête de série ${SS.head}, son numéro dépasse p = ${SS.p}. Il ne répond à aucune entrée jusqu’à la prochaine réaffectation.`, `This group is <b>at rest</b>: with head number ${SS.head}, its number exceeds p = ${SS.p}. It answers no input until the next reassignment.`)}</div>`;
     } else {
       const f = SS.fns[g.fn], left = Math.max(0, (f.t0 + f.Y * 1000 - simT) / 1000), ago = Math.max(0, (simT - f.t0) / 1000);
-      h += `<h4>Fonction X<sub>${f.i}</sub> = ${f.X}</h4><div class="dim">décidée il y a ${ago.toFixed(0)} s, avec les entrées de ce moment-là (valeur actuelle entre parenthèses)</div><table class="pk-t"><tr><th>entrée</th><th>A<sub>ij</sub></th><th>x<sub>j</sub></th><th>A·x</th><th></th></tr>`;
+      h += `<h4>${T('Fonction', 'Function')} X<sub>${f.i}</sub> = ${f.X}</h4><div class="dim">${T(`décidée il y a ${ago.toFixed(0)} s, avec les entrées de ce moment-là (valeur actuelle entre parenthèses)`, `decided ${ago.toFixed(0)} s ago, on the inputs of that moment (current value in brackets)`)}</div><table class="pk-t"><tr><th>${T('entrée', 'input')}</th><th>A<sub>ij</sub></th><th>x<sub>j</sub></th><th>A·x</th><th></th></tr>`;
       const rowsT = []; for (let j = 0; j < n; j++) if (f.A[j] > 0) rowsT.push([j, f.A[j], f.xs ? f.xs[j] : DATA.channels[j].x, DATA.channels[j].x]);
       rowsT.sort((a, b) => b[1] * b[2] - a[1] * a[2]);
-      rowsT.forEach(([j, a, x, xn]) => { const c = DATA.channels[j]; h += `<tr><td>x<sub>${j + 1}</sub> ${c.fr}</td><td>${a.toFixed(2)}</td><td>${x.toFixed(2)} <span class="dim">(${xn.toFixed(2)})</span></td><td><b>${(a * x).toFixed(2)}</b></td><td><span class="${stClass(c.status)}">${c.status}</span></td></tr>`; });
-      h += `</table><div>f = ${(f.f + f.K).toFixed(3)} · seuil K = ${f.K.toFixed(3)} (abaissé ou relevé par la tonalité τ = ${SS.tau.toFixed(2)}) · f − K = <b class="${f.f > 0 ? 'pos' : 'neg'}">${f.f >= 0 ? '+' : ''}${f.f.toFixed(3)}</b></div>`;
-      if (f.passed) h += `<div>tirage de validation u = ${f.u.toFixed(3)} ${f.u < f.seuil ? '<' : '≥'} ${f.seuil} (régime ${f.reg || SS.regime} au moment du tirage) → ${f.u < f.seuil ? 'validé' : 'refusé'}</div>`;
-      else h += `<div>f − K ≤ 0 : la fonction ne fonctionne pas, quel que soit le tirage.</div>`;
-      if (f.X && f.mode) { const r = f.ranks ? f.ranks[g.organs.indexOf(o)] : 0; h += `<div>mode n° ${f.mode.id} : <i>${f.mode.name}</i> · cet organe est le ${r + 1}<sup>e</sup> sur ${g.organs.length}, commandé ${(f.mode.o === 9 ? 0 : r * f.theta).toFixed(1)} s après le début du cycle (r·θ, θ = ${f.theta.toFixed(2)} s)</div>`; }
-      h += `<div class="dim">cycle de ${f.Y.toFixed(1)} s, nouveau calcul dans ${left.toFixed(0)} s${f.lively ? ' · tirage orienté (une entrée dépasse 0,85)' : ''}</div>`;
+      rowsT.forEach(([j, a, x, xn]) => { const c = DATA.channels[j]; h += `<tr><td>x<sub>${j + 1}</sub> ${I18N.chName(c)}</td><td>${a.toFixed(2)}</td><td>${x.toFixed(2)} <span class="dim">(${xn.toFixed(2)})</span></td><td><b>${(a * x).toFixed(2)}</b></td><td><span class="${stClass(c.status)}">${I18N.st(c.status)}</span></td></tr>`; });
+      h += `</table><div>f = ${(f.f + f.K).toFixed(3)} · ${T('seuil', 'threshold')} K = ${f.K.toFixed(3)} (${T('abaissé ou relevé par la tonalité', 'lowered or raised by the tonality')} τ = ${SS.tau.toFixed(2)}) · f − K = <b class="${f.f > 0 ? 'pos' : 'neg'}">${f.f >= 0 ? '+' : ''}${f.f.toFixed(3)}</b></div>`;
+      if (f.passed) h += `<div>${T('tirage de validation', 'validating draw')} u = ${f.u.toFixed(3)} ${f.u < f.seuil ? '<' : '≥'} ${f.seuil} (${T('régime', 'régime')} ${tx(f.reg || SS.regime)} ${T('au moment du tirage', 'at the time of the draw')}) → ${f.u < f.seuil ? T('validé', 'validated') : T('refusé', 'refused')}</div>`;
+      else h += `<div>${T('f − K ≤ 0 : la fonction ne fonctionne pas, quel que soit le tirage.', 'f − K ≤ 0: the function does not work, whatever the draw.')}</div>`;
+      if (f.X && f.mode) { const r = f.ranks ? f.ranks[g.organs.indexOf(o)] : 0; const dt = (f.mode.o === 9 ? 0 : r * f.theta).toFixed(1); h += `<div>mode ${T('n°', 'no.')} ${f.mode.id} : <i>${tx(f.mode.name)}</i> · ${T(`cet organe est le ${r + 1}<sup>e</sup> sur ${g.organs.length}, commandé ${dt} s après le début du cycle`, `this organ is no. ${r + 1} of ${g.organs.length}, commanded ${dt} s after the cycle begins`)} (r·θ, θ = ${f.theta.toFixed(2)} s)</div>`; }
+      h += `<div class="dim">${T(`cycle de ${f.Y.toFixed(1)} s, nouveau calcul dans ${left.toFixed(0)} s`, `cycle of ${f.Y.toFixed(1)} s, recalculated in ${left.toFixed(0)} s`)}${f.lively ? T(' · tirage orienté (une entrée dépasse 0,85)', ' · biased draw (an input exceeds 0.85)') : ''}</div>`;
       // why it may still be dark
       const why = [];
-      if (SS.shutdown) why.push('extinction nocturne');
-      if (!SS.night && (o.type >= 5 && o.type <= 7)) why.push('de jour, gros projecteurs et lasers débranchés (p. 100)');
-      if (o.type === 4 && SS.regime === 'bleu') why.push('régime bleu : projecteurs à obturateurs éteints (annexe 3)');
-      if (colNow && SS.regime === 'bleu' && colNow === 'rouge') why.push('régime bleu : sorties rouges bloquées, B_i = max (organigramme)');
-      if (colNow && SS.regime === 'bleu' && (colNow === 'orange' || colNow === 'violet')) why.push('régime bleu : priorité aux bleus, blancs et jaunes, cette couleur à 30 % (lecture de la p. 114)');
-      if (colNow && SS.regime === 'rouge' && colNow === 'bleu') why.push('régime rouge : sorties bleues bloquées, B_i = max (organigramme)');
-      if (colNow && SS.regime === 'rouge' && (colNow === 'jaune' || colNow === 'blanc')) why.push('régime rouge : dominante rouge, cette couleur atténuée (lecture de la p. 114)');
-      if (o.type !== 2 && o.type !== 1) why.push(`plafond d’intensité du régime ${SS.regime} : ${({ bleu: 60, normal: 75, rouge: 90 })[SS.regime]} % (annexe 1)`);
-      if (SS.special) why.push(SS.special.kind === 'meteo' ? 'langage conventionnel : annonce météo en cours' : 'langage conventionnel : signal de circulation en cours');
-      if (SS.vanish) why.push('tour disparue dans la fumée');
-      if (SS.antagonist) why.push(`flashes antagonistes (${SS.antagonist.kind})`);
-      if (why.length) h += `<h4>Ce qui l’emporte en ce moment</h4><div>${why.join(' · ')}</div>`;
+      if (SS.shutdown) why.push(T('extinction nocturne', 'night shutdown'));
+      if (!SS.night && (o.type >= 5 && o.type <= 7)) why.push(T('de jour, gros projecteurs et lasers débranchés (p. 100)', 'by day, large projectors and lasers disconnected (p. 100)'));
+      if (o.type === 4 && SS.regime === 'bleu') why.push(T('régime bleu : projecteurs à obturateurs éteints (annexe 3)', 'blue régime: shutter projectors off (Annex 3)'));
+      if (colNow && SS.regime === 'bleu' && colNow === 'rouge') why.push(T('régime bleu : sorties rouges bloquées, B_i = max (organigramme)', 'blue régime: red outputs blocked, B_i = max (flowchart)'));
+      if (colNow && SS.regime === 'bleu' && (colNow === 'orange' || colNow === 'violet')) why.push(T('régime bleu : priorité aux bleus, blancs et jaunes, cette couleur à 30 % (lecture de la p. 114)', 'blue régime: blues, whites and yellows take priority, this colour at 30% (reading of p. 114)'));
+      if (colNow && SS.regime === 'rouge' && colNow === 'bleu') why.push(T('régime rouge : sorties bleues bloquées, B_i = max (organigramme)', 'red régime: blue outputs blocked, B_i = max (flowchart)'));
+      if (colNow && SS.regime === 'rouge' && (colNow === 'jaune' || colNow === 'blanc')) why.push(T('régime rouge : dominante rouge, cette couleur atténuée (lecture de la p. 114)', 'red régime: red dominant, this colour dimmed (reading of p. 114)'));
+      if (o.type !== 2 && o.type !== 1) why.push(T(`plafond d’intensité du régime ${SS.regime} : ${({ bleu: 60, normal: 75, rouge: 90 })[SS.regime]} % (annexe 1)`, `intensity ceiling of the ${tx(SS.regime)} régime: ${({ bleu: 60, normal: 75, rouge: 90 })[SS.regime]}% (Annex 1)`));
+      if (SS.special) why.push(SS.special.kind === 'meteo' ? T('langage conventionnel : annonce météo en cours', 'conventional language: weather announcement under way') : T('langage conventionnel : signal de circulation en cours', 'conventional language: traffic signal under way'));
+      if (SS.vanish) why.push(T('tour disparue dans la fumée', 'tower hidden in smoke'));
+      if (SS.antagonist) why.push(`${T('flashes antagonistes', 'antagonist flashes')} (${tx(SS.antagonist.kind)})`);
+      if (why.length) h += `<h4>${T('Ce qui l’emporte en ce moment', 'What prevails at the moment')}</h4><div>${why.join(' · ')}</div>`;
     }
     $('#pick-body').innerHTML = h;
   }
@@ -271,8 +285,8 @@
   }
   function analyse() {
     const R = REC.rows; const box = $('#ana');
-    $('#rec-count').textContent = `${R.length} relevés (Δt = 5 s) · ${REC.events.length} événements · depuis ${R.length ? new Date(R[0].t).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }) : '—'}`;
-    if (R.length < 60) { box.innerHTML = '<p class="dim">Il faut au moins cinq minutes de relevés. L’analyse se met à jour à l’ouverture de cet onglet.</p>'; return; }
+    $('#rec-count').textContent = T(`${R.length} relevés (Δt = 5 s) · ${REC.events.length} événements · depuis `, `${R.length} readings (Δt = 5 s) · ${REC.events.length} events · since `) + (R.length ? new Date(R[0].t).toLocaleString(LOC(), { timeZone: 'Europe/Paris' }) : '—');
+    if (R.length < 60) { box.innerHTML = `<p class="dim">${T('Il faut au moins cinq minutes de relevés. L’analyse se met à jour à l’ouverture de cet onglet.', 'At least five minutes of readings are needed. The analysis updates when this tab is opened.')}</p>`; return; }
     const total = tower.organs.filter(o => o.type <= 7).length;
     const lit = R.map(r => r.lit / total), act = R.map(r => r.act);
     const X = R.map(r => r.x);
@@ -283,17 +297,18 @@
     const tot = sd(lit);
     const wrows = wins.map(([w, l]) => { const m = []; for (let i = 0; i + w <= lit.length; i += w) m.push(mean(lit.slice(i, i + w))); return `<tr><td>${l}</td><td>${m.length}</td><td>${(mean(m) * 100).toFixed(1)} %</td><td>${(sd(m) * 100).toFixed(2)}</td><td>${tot ? (sd(m) / tot).toFixed(2) : '—'}</td></tr>`; }).join('');
     const reg = { bleu: 0, normal: 0, rouge: 0 }; R.forEach(r => reg[r.regime]++);
-    let html = `<h3>Couplage ville → tour</h3>
-      <p>Part de la variation des organes allumés expliquée linéairement par les ${n} entrées : <b>R² = ${R2 == null ? '—' : R2.toFixed(3)}</b> (organes allumés), <b>${R2a == null ? '—' : R2a.toFixed(3)}</b> (fonctions X = 1). Corrélation avec D : <b>${rD.toFixed(3)}</b>.</p>
-      <table class="ana"><tr><th>entrée</th><th>r</th><th></th></tr>${cors.slice(0, 10).map(o => `<tr><td>${o.c.fr}</td><td>${o.r.toFixed(3)}</td><td><i style="width:${Math.abs(o.r) * 100}%;background:${o.r > 0 ? '#8fd18b' : '#d4553f'}"></i></td></tr>`).join('')}</table>
+    const R2s = R2 == null ? '—' : R2.toFixed(3), R2as = R2a == null ? '—' : R2a.toFixed(3);
+    let html = `<h3>${T('Couplage ville → tour', 'Coupling city → tower')}</h3>
+      <p>${T(`Part de la variation des organes allumés expliquée linéairement par les ${n} entrées : <b>R² = ${R2s}</b> (organes allumés), <b>${R2as}</b> (fonctions X = 1). Corrélation avec D : <b>${rD.toFixed(3)}</b>.`, `Share of the variation in lit organs explained linearly by the ${n} inputs: <b>R² = ${R2s}</b> (lit organs), <b>${R2as}</b> (functions X = 1). Correlation with D: <b>${rD.toFixed(3)}</b>.`)}</p>
+      <table class="ana"><tr><th>${T('entrée', 'input')}</th><th>r</th><th></th></tr>${cors.slice(0, 10).map(o => `<tr><td>${I18N.chName(o.c)}</td><td>${o.r.toFixed(3)}</td><td><i style="width:${Math.abs(o.r) * 100}%;background:${o.r > 0 ? '#8fd18b' : '#d4553f'}"></i></td></tr>`).join('')}</table>
       <h3>Local / global (Stener Jørgensen & Laplante-Anfossi)</h3>
-      <p>Écart-type des moyennes par fenêtre, rapporté à l’écart-type de la série brute. Un rapport qui tombe vite vers zéro décrit une tour imprévisible de près et semblable à elle-même de loin.</p>
-      <table class="ana"><tr><th>fenêtre</th><th>n</th><th>moyenne</th><th>é.-t. (pts)</th><th>rapport</th></tr>${wrows}</table>
-      <h3>Régimes</h3><p>bleu ${(reg.bleu / R.length * 100).toFixed(0)} % · normal ${(reg.normal / R.length * 100).toFixed(0)} % · rouge ${(reg.rouge / R.length * 100).toFixed(0)} % · interventions de la cellule : ${REC.events.filter(e => /INDIFFÉRENCE/.test(e.s)).length}</p>`;
+      <p>${T('Écart-type des moyennes par fenêtre, rapporté à l’écart-type de la série brute. Un rapport qui tombe vite vers zéro décrit une tour imprévisible de près et semblable à elle-même de loin.', 'Standard deviation of the window means, relative to that of the raw series. A ratio that falls quickly toward zero describes a tower unpredictable close up and self-similar from afar.')}</p>
+      <table class="ana"><tr><th>${T('fenêtre', 'window')}</th><th>n</th><th>${T('moyenne', 'mean')}</th><th>${T('é.-t. (pts)', 's.d. (pts)')}</th><th>${T('rapport', 'ratio')}</th></tr>${wrows}</table>
+      <h3>${T('Régimes', 'Régimes')}</h3><p>${T('bleu', 'blue')} ${(reg.bleu / R.length * 100).toFixed(0)} % · normal ${(reg.normal / R.length * 100).toFixed(0)} % · ${T('rouge', 'red')} ${(reg.rouge / R.length * 100).toFixed(0)} % · ${T('interventions de la cellule', 'interventions by the cell')} : ${REC.events.filter(e => /INDIFFÉRENCE/.test(e.s)).length}</p>`;
     if (R[0].litB != null) {
       const litB = R.filter(r => r.litB != null).map(r => r.litB / total), XB = R.filter(r => r.litB != null).map(r => r.x);
       const R2b = r2(litB, XB);
-      html += `<h3>Comparaison A / B</h3><p>R² A = ${R2 == null ? '—' : R2.toFixed(3)} · R² B = ${R2b == null ? '—' : R2b.toFixed(3)} · corrélation A↔B = ${corr(lit.slice(-litB.length), litB).toFixed(3)} · moyenne allumée A ${(mean(lit) * 100).toFixed(1)} %, B ${(mean(litB) * 100).toFixed(1)} %</p>`;
+      html += `<h3>${T('Comparaison A / B', 'Comparison A / B')}</h3><p>R² A = ${R2s} · R² B = ${R2b == null ? '—' : R2b.toFixed(3)} · ${T('corrélation', 'correlation')} A↔B = ${corr(lit.slice(-litB.length), litB).toFixed(3)} · ${T('moyenne allumée', 'mean lit')} A ${(mean(lit) * 100).toFixed(1)} %, B ${(mean(litB) * 100).toFixed(1)} %</p>`;
     }
     box.innerHTML = html;
   }
@@ -307,25 +322,27 @@
   function csvEvents() { return ['temps_iso,programme,evenement', ...REC.events.map(e => `${new Date(e.t).toISOString()},${e.prog},"${e.s.replace(/"/g, '""')}"`)].join('\n'); }
   function download(name, text) {
     try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
-    catch (e) { $('#rec-msg').textContent = 'Téléchargement impossible ici ; utilisez « copier ».'; }
+    catch (e) { $('#rec-msg').textContent = T('Téléchargement impossible ici ; utilisez « copier ».', 'Download not possible here; use “copy”.'); }
   }
   const stamp = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
   $('#rec-dl').addEventListener('click', () => download(`tlc-releves-${stamp()}.csv`, csv()));
   $('#rec-dl-ev').addEventListener('click', () => download(`tlc-evenements-${stamp()}.csv`, csvEvents()));
-  $('#rec-copy').addEventListener('click', async () => { try { await navigator.clipboard.writeText(csv()); $('#rec-msg').textContent = 'Copié.'; } catch (e) { $('#rec-msg').textContent = 'Copie refusée par le navigateur.'; } });
+  $('#rec-copy').addEventListener('click', async () => { try { await navigator.clipboard.writeText(csv()); $('#rec-msg').textContent = T('Copié.', 'Copied.'); } catch (e) { $('#rec-msg').textContent = T('Copie refusée par le navigateur.', 'Copy refused by the browser.'); } });
   $('#rec-clear').addEventListener('click', () => { REC.rows = []; REC.events = []; analyse(); });
   $('#ana-run').addEventListener('click', analyse);
 
   // ---------------- comparison
   const CRIT = [
-    ['Kmin', 'K : borne basse de κ', 'number', 0.05], ['Kspan', 'K : étendue de κ', 'number', 0.05], ['onScale', 'durée moyenne allumée ×', 'number', 0.1],
-    ['meanOff', 'durée moyenne au repos (s)', 'number', 1], ['pq', 'part des groupes commandés p/q', 'number', 0.02], ['reassign', 'réaffectation (s)', 'number', 30],
-    ['sMin', 'entrées par fonction (min)', 'number', 1], ['sMax', 'entrées par fonction (max)', 'number', 1],
-    ['law', 'loi des durées Y', ['gamma', 'uniforme', 'exponentielle']], ['capMode', '60/75/90 % lus comme', ['intensité', 'proportion']]
+    ['Kmin', ['K : borne basse de κ', 'K: lower bound of κ'], 'number', 0.05], ['Kspan', ['K : étendue de κ', 'K: range of κ'], 'number', 0.05], ['onScale', ['durée moyenne allumée ×', 'mean time on ×'], 'number', 0.1],
+    ['meanOff', ['durée moyenne au repos (s)', 'mean time at rest (s)'], 'number', 1], ['pq', ['part des groupes commandés p/q', 'share of groups commanded p/q'], 'number', 0.02], ['reassign', ['réaffectation (s)', 'reassignment (s)'], 'number', 30],
+    ['sMin', ['entrées par fonction (min)', 'inputs per function (min)'], 'number', 1], ['sMax', ['entrées par fonction (max)', 'inputs per function (max)'], 'number', 1],
+    ['law', ['loi des durées Y', 'law of the durations Y'], ['gamma', 'uniforme', 'exponentielle']], ['capMode', ['60/75/90 % lus comme', '60/75/90% read as'], ['intensité', 'proportion']]
   ];
+  const OPT_EN = { uniforme: 'uniform', exponentielle: 'exponential', 'intensité': 'intensity' };
   function critForm(id, P) {
-    $(id).innerHTML = CRIT.map(([k, l, t, step]) => `<label>${l}</label>` + (Array.isArray(t) ? `<select data-k="${k}">${t.map(v => `<option${P.CR[k] === v ? ' selected' : ''}>${v}</option>`).join('')}</select>` : `<input type="number" data-k="${k}" step="${step}" value="${P.CR[k]}">`)).join('');
+    $(id).innerHTML = CRIT.map(([k, l, t, step]) => `<label>${T(l[0], l[1])}</label>` + (Array.isArray(t) ? `<select data-k="${k}">${t.map(v => `<option value="${v}"${P.CR[k] === v ? ' selected' : ''}>${I18N.lang === 'fr' ? v : (OPT_EN[v] || v)}</option>`).join('')}</select>` : `<input type="number" data-k="${k}" step="${step}" value="${P.CR[k]}">`)).join('');
   }
+  I18N.on(() => { const a = readForm('#critA'); critForm('#critA', { CR: Object.assign({}, PROG.CR, a) }); if (PB) { const b = readForm('#critB'); critForm('#critB', { CR: Object.assign({}, PB.CR, b) }); } });
   function readForm(id) { const o = {}; $$(id + ' [data-k]').forEach(el => o[el.dataset.k] = el.tagName === 'SELECT' ? el.value : +el.value); return o; }
   critForm('#critA', PROG);
   const PRESETS = {
@@ -340,7 +357,7 @@
       resizeAll();
     } else { PB.setCriteria(critB); PB.init(tower, n); }
     critForm('#critB', PB); $('#cmp-stop').disabled = false;
-    $('#labelB-text').textContent = 'B — ' + Object.entries(PB.CR).filter(([k, v]) => !['label', 'quiet'].includes(k) && v !== ({ Kmin: 0.6, Kspan: 0.35, onScale: 1, meanOff: 10, pq: 0.72, reassign: 300, law: 'gamma', sMin: 3, sMax: 7, capMode: 'intensité' })[k]).map(([k, v]) => `${k} ${v}`).join(' · ');
+    $('#labelB-text').textContent = 'B — ' + tx(Object.entries(PB.CR).filter(([k, v]) => !['label', 'quiet'].includes(k) && v !== ({ Kmin: 0.6, Kspan: 0.35, onScale: 1, meanOff: 10, pq: 0.72, reassign: 300, law: 'gamma', sMin: 3, sMax: 7, capMode: 'intensité' })[k]).map(([k, v]) => `${k} ${v}`).join(' · '));
   }
   $('#cmp-start').addEventListener('click', () => startCompare(PB ? readForm('#critB') : {}));
   $$('#cmp-presets button').forEach(b => b.addEventListener('click', () => startCompare(Object.assign(readFormSafe(), PRESETS[b.dataset.p]))));
@@ -355,30 +372,33 @@
   $('#rp-day').value = yest; $('#rp-day').max = yest;
   $('#rp-go').addEventListener('click', async () => {
     const day = $('#rp-day').value; if (!day) return;
-    $('#rp-msg').textContent = 'Chargement des archives…';
+    $('#rp-msg').textContent = T('Chargement des archives…', 'Loading the archives…');
     try {
       const r = await DATA.loadReplay(day);
       simT = r.t0 + (+$('#rp-hour').value) * 3600000; lastTick = -1e12;
       opt.speed = +$('#rp-speed').value; $('#speed').value = String(opt.speed);
-      $('#rp-msg').textContent = `Archives du ${day} chargées.` + (r.notes.length ? ' Lacunes : ' + r.notes.join(' ; ') : '') + ' Les lignes sans archive (téléphones, radio, presse, Bourse, Métro, Vélib’, Chambre, pompiers) passent en simulation.';
+      $('#rp-msg').textContent = T(`Archives du ${day} chargées.`, `Archives for ${day} loaded.`) + (r.notes.length ? T(' Lacunes : ', ' Gaps: ') + r.notes.map(tx).join(' ; ') : '') + T(' Les lignes sans archive (téléphones, radio, presse, Bourse, Métro, Vélib’, Chambre, pompiers) passent en simulation.', ' Lines without an archive (telephones, radio, press, Bourse, Métro, Vélib’, Chamber, fire brigade) run in simulation.');
       $('#rp-stop').disabled = false;
-    } catch (e) { $('#rp-msg').textContent = 'Échec : ' + e.message; }
+    } catch (e) { $('#rp-msg').textContent = T('Échec : ', 'Failed: ') + e.message; }
   });
-  $('#rp-stop').addEventListener('click', () => { DATA.stopReplay(); simT = Date.now(); opt.speed = 1; $('#speed').value = '1'; $('#rp-stop').disabled = true; $('#rp-msg').textContent = 'Retour au direct.'; });
+  $('#rp-stop').addEventListener('click', () => { DATA.stopReplay(); simT = Date.now(); opt.speed = 1; $('#speed').value = '1'; $('#rp-stop').disabled = true; $('#rp-msg').textContent = T('Retour au direct.', 'Back to live.'); });
 
   // ---------------- documents
   const DOCS = [
-    ['p86', 'Tour Lumière Cybernétique : maquette', 86], ['p87', 'Vue d’ensemble 1 (rendu de nuit)', 87], ['p89', 'Vue d’ensemble 2', 89], ['p91', 'La T.L.C. et la perspective de la Défense (maquettes de situation)', 91],
-    ['p132', 'Façade et circulation verticale (façade 2, section 6)', 132], ['p131', 'Coupe générale ; plan du parking et sous-sol du socle', 131], ['p133', 'Plan de situation', 133],
-    ['p98', 'Schéma du centre de contrôle et de régulation d’une ville cybernétique', 98], ['p99', 'Schéma théorique du fonctionnement de la T.L.C.', 99],
-    ['p107', 'Salle des ordinateurs', 107], ['p116', 'Figure 1 : états des capteurs de bruit et de vent', 116], ['p121', 'Organigramme de principe', 121], ['p123', 'Description des six fenêtres simulées', 123]
+    ['p86', 'Tour Lumière Cybernétique : maquette', 86, 'Tour Lumière Cybernétique: model'], ['p87', 'Vue d’ensemble 1 (rendu de nuit)', 87, 'General view 1 (night rendering)'], ['p89', 'Vue d’ensemble 2', 89, 'General view 2'], ['p91', 'La T.L.C. et la perspective de la Défense (maquettes de situation)', 91, 'The T.L.C. and the perspective of La Défense (site models)'],
+    ['p132', 'Façade et circulation verticale (façade 2, section 6)', 132, 'Façade and vertical circulation (façade 2, section 6)'], ['p131', 'Coupe générale ; plan du parking et sous-sol du socle', 131, 'General section; plan of the car park and basement of the socle'], ['p133', 'Plan de situation', 133, 'Site plan'],
+    ['p98', 'Schéma du centre de contrôle et de régulation d’une ville cybernétique', 98, 'Diagram of the control and regulation centre of a cybernetic city'], ['p99', 'Schéma théorique du fonctionnement de la T.L.C.', 99, 'Theoretical diagram of the operation of the T.L.C.'],
+    ['p107', 'Salle des ordinateurs', 107, 'Computer room'], ['p116', 'Figure 1 : états des capteurs de bruit et de vent', 116, 'Figure 1: states of the noise and wind sensors'], ['p121', 'Organigramme de principe', 121, 'Outline flowchart'], ['p123', 'Description des six fenêtres simulées', 123, 'Description of the six simulated windows']
   ];
-  $('#docs').innerHTML = DOCS.map(([f, t, p]) => `<figure data-f="${f}"><img src="img/${f}.jpg" alt="${t}" loading="lazy" onerror="this.parentNode.classList.add('missing')"><figcaption>${t} <span class="dim">p. ${p}</span></figcaption></figure>`).join('');
-  $$('#docs figure').forEach(fg => fg.addEventListener('click', () => { const [f, t, p] = DOCS.find(d => d[0] === fg.dataset.f); $('#lb-img').src = `img/${f}.jpg`; $('#lb-cap').textContent = `${t} — Schöffer, La Tour Lumière Cybernétique, 1973, p. ${p}. © ADAGP, Paris.`; $('#lightbox').hidden = false; }));
+  const docT = d => I18N.lang === 'fr' ? d[1] : d[3];
+  const drawDocs = () => { $('#docs').innerHTML = DOCS.map(d => `<figure data-f="${d[0]}"><img src="img/${d[0]}.jpg" alt="${docT(d)}" loading="lazy" onerror="this.parentNode.classList.add('missing')"><figcaption>${docT(d)} <span class="dim">p. ${d[2]}</span></figcaption></figure>`).join('');
+    $$('#docs figure').forEach(fg => fg.addEventListener('click', () => { const d = DOCS.find(x => x[0] === fg.dataset.f); $('#lb-img').src = `img/${d[0]}.jpg`; $('#lb-cap').textContent = `${docT(d)} — Schöffer, La Tour Lumière Cybernétique, 1973, p. ${d[2]}. © ADAGP, Paris.`; $('#lightbox').hidden = false; })); };
+  drawDocs(); I18N.on(drawDocs);
   $('#lightbox').addEventListener('click', () => $('#lightbox').hidden = true);
   // overlay of façade 2 (p. 132) on the rendered tower
   let overlayOn = false; const ov = $('#overlay-facade');
-  $('#ov-toggle').addEventListener('click', () => { overlayOn = !overlayOn; ov.hidden = !overlayOn; if (overlayOn) { VIEW.preset('facade'); VIEW.cam.auto = false; } $('#ov-toggle').textContent = overlayOn ? 'retirer le dessin' : 'superposer la façade 2 (p. 132)'; });
+  $('#ov-toggle').addEventListener('click', () => { overlayOn = !overlayOn; ov.hidden = !overlayOn; if (overlayOn) { VIEW.preset('facade'); VIEW.cam.auto = false; } ovLabel(); });
+  const ovLabel = () => $('#ov-toggle').textContent = overlayOn ? T('retirer le dessin', 'remove the drawing') : T('superposer la façade 2 (p. 132)', 'overlay façade 2 (p. 132)'); I18N.on(ovLabel);
   $('#ov-opacity').addEventListener('input', e => ov.style.opacity = e.target.value);
   function placeOverlay() {
     // drawing rows: level 0 at 1771.5 px, level 307 m at 70.8 px, core axis at 257.3 px (image 515 × 1929)
@@ -398,7 +418,7 @@
     const layers = {
       plan: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }),
       sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri, Maxar' }),
-      ign: L.tileLayer('https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS.1965-1980&STYLE=BDORTHOHISTORIQUE&TILEMATRIXSET=PM_3_18&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/png', { maxZoom: 18, attribution: 'IGN, photographies aériennes 1965–1980' })
+      ign: L.tileLayer('https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS.1965-1980&STYLE=BDORTHOHISTORIQUE&TILEMATRIXSET=PM_3_18&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/png', { maxZoom: 18, attribution: 'IGN, 1965–1980' })
     };
     let cur = store.get('mmLayer', 'ign'); layers[cur].addTo(map);
     // four mutually exclusive modes: 1965–80, plan, satellite, 3D
@@ -432,7 +452,7 @@
     // keep both the tower and the viewer in frame; refit only when the view has moved noticeably
     const key = Math.round(flat / 60) + ':' + Math.round(eyeLL[0] * 2000) + ':' + Math.round(eyeLL[1] * 2000);
     if (key !== MM.lastKey) { MM.lastKey = key; MM.map.fitBounds(L.latLngBounds([MM.site, eyeLL]).pad(0.35), { animate: false, maxZoom: 17 }); }
-    $('#mm-cap').textContent = `regard vers ${Math.round(((bearing * 180 / Math.PI) % 360 + 360) % 360)}° · ${Math.round(flat)} m du pied`;
+    $('#mm-cap').textContent = T(`regard vers ${Math.round(((bearing * 180 / Math.PI) % 360 + 360) % 360)}° · ${Math.round(flat)} m du pied`, `looking toward ${Math.round(((bearing * 180 / Math.PI) % 360 + 360) % 360)}° · ${Math.round(flat)} m from the base`);
   }
   try { initMap(); } catch (e) { $('#minimap').hidden = true; }
   $('#mm-3d').addEventListener('click', () => { if (!MAP3D.isSmall()) { MAP3D.open(tower, 'small'); MM_mark('3d'); } });
@@ -449,7 +469,7 @@
   let lpDirty = false;
   function renderListing() {
     if (!lpDirty) return; lpDirty = false;
-    const txt = SIM73.S.pages.slice(-12).join('\n\n');
+    const txt = tx(SIM73.S.pages.slice(-12).join('\n\n'));
     const vis = !$('#tab-listing').hidden, big = !$('#lpmodal').hidden;
     if (vis) { const el = $('#listing'); el.textContent = txt; el.parentNode.scrollTop = el.parentNode.scrollHeight; }
     if (big) { const el = $('#listing-big'); el.textContent = txt; el.parentNode.scrollTop = el.parentNode.scrollHeight; }
@@ -458,11 +478,11 @@
   setInterval(renderListing, 400);
   $('#lp-big').addEventListener('click', () => { $('#lpmodal').hidden = false; lpDirty = true; renderListing(); });
   $('#lp-close').addEventListener('click', () => $('#lpmodal').hidden = true);
-  $('#lp-dl').addEventListener('click', () => { try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([SIM73.text()], { type: 'text/plain;charset=utf-8' })); a.download = `tlc-listing-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.txt`; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 1000); } catch (e) { } });
+  $('#lp-dl').addEventListener('click', () => { try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([tx(SIM73.text())], { type: 'text/plain;charset=utf-8' })); a.download = `tlc-listing-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.txt`; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 1000); } catch (e) { } });
 
 
   // ---------------- plain-language summary of the inputs, every ten minutes
-  let sumLang = store.get('sumLang', 'fr'), lastSum = 0;
+  let lastSum = 0;
   const live = id => ['DIRECT', 'DIFFÉRÉ', 'DÉRIVÉ', 'ARCHIVE'].includes(DATA.byId[id].status);
   function trend(id) { // compare with ten minutes ago
     const c = DATA.byId[id], h = c.hist; if (h.length < 3) return 0;
@@ -471,8 +491,7 @@
   }
   const cut = (s, n) => s.length <= n ? s : s.slice(0, s.lastIndexOf(' ', n)) + '…';
   function summarise() {
-    const fr = sumLang === 'fr', C = DATA.byId, x = DATA.ctx, L = [];
-    const T = (a, b) => fr ? a : b;
+    const fr = I18N.lang === 'fr', C = DATA.byId, x = DATA.ctx, L = [];
     const tw = id => { const t = trend(id); return t > 0 ? T(' et en hausse', ', rising') : t < 0 ? T(' et en baisse', ', falling') : ''; };
     const lvl = (v, words) => words[Math.min(words.length - 1, Math.floor(v * words.length))];
     // weather and light
@@ -514,14 +533,14 @@
       L.push(T(`<b>La tour</b> — surtout en régime ${name[main]} ces dix dernières minutes (${Math.round(reg[main] / R.length * 100)} % du temps), en moyenne ${lit} lumières allumées${ind ? `, ${ind} intervention${ind > 1 ? 's' : ''} de la cellule d’indifférence` : ''}${S.vanish ? ', disparue dans la fumée' : ''}.`,
         `<b>The tower</b> — mostly in the ${name[main]} régime over the last ten minutes (${Math.round(reg[main] / R.length * 100)}% of the time), with ${lit} lights on average${ind ? `, ${ind} intervention${ind > 1 ? 's' : ''} by the indifference cell` : ''}${S.vanish ? ', hidden in smoke' : ''}.`));
     }
-    const simIds = DATA.channels.filter(c => !['DIRECT', 'DIFFÉRÉ', 'DÉRIVÉ', 'ARCHIVE'].includes(c.status)).map(c => fr ? c.fr : (c.id.startsWith('vent') ? `${c.en} ${c.id.slice(4)} m` : c.en));
+    const simIds = DATA.channels.filter(c => !['DIRECT', 'DIFFÉRÉ', 'DÉRIVÉ', 'ARCHIVE'].includes(c.status)).map(c => I18N.chName(c));
     if (simIds.length) L.push(`<span class="dim">${T('Pas en direct pour l’instant (simulé ou clé requise) : ', 'Not live at the moment (simulated or key needed): ')}${simIds.join(', ')}.</span>`);
-    const now = new Date(simT).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' });
+    const now = new Date(simT).toLocaleTimeString(LOC(), { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' });
     $('#sum-body').innerHTML = L.map(l => `<p>${l}</p>`).join('');
     $('#sum-time').textContent = T(`mis à jour ${now} · prochain dans 10 min`, `updated ${now} · next in 10 min`);
     lastSum = Date.now();
   }
-  $$('#sumbox [data-lang]').forEach(b => { b.classList.toggle('on', b.dataset.lang === sumLang); b.addEventListener('click', e => { e.preventDefault(); sumLang = b.dataset.lang; store.set('sumLang', sumLang); $$('#sumbox [data-lang]').forEach(x => x.classList.toggle('on', x === b)); if (started) summarise(); }); });
+  I18N.on(() => { if (started && lastSum) summarise(); });
   setInterval(() => { if (!started) return; const age = Date.now() - lastSum; if ((lastSum === 0 && REC.rows.length >= 8) || age >= 600000) summarise(); }, 5000);
 
   // ---------------- teletype
@@ -530,26 +549,76 @@
     DATA.log.forEach(l => { if (l.t > lastLog) ttQueue.push(l); }); if (DATA.log.length) lastLog = DATA.log[DATA.log.length - 1].t;
     if (!ttLine && ttQueue.length) {
       const l = ttQueue.shift(); ttLine = document.createElement('div');
-      ttLine.dataset.full = `${new Date(l.t).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris' })}  ${l.s.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()}`; ttShown = 0; tt.appendChild(ttLine);
+      ttLine.dataset.src = `${new Date(l.t).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris' })}  ${l.s.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()}`; ttLine.dataset.full = tx(ttLine.dataset.src); ttShown = 0; tt.appendChild(ttLine);
       while (tt.children.length > 160) tt.removeChild(tt.firstChild);
     }
     if (ttLine) { ttShown = Math.min(ttLine.dataset.full.length, ttShown + (ttQueue.length > 8 ? 12 : 3)); ttLine.textContent = ttLine.dataset.full.slice(0, ttShown); if (ttShown >= ttLine.dataset.full.length) ttLine = null; tt.scrollTop = tt.scrollHeight; }
   }
 
+  I18N.on(() => { Array.from(tt.children).forEach(d => { if (d.dataset.src) { d.dataset.full = tx(d.dataset.src); if (d !== ttLine) d.textContent = d.dataset.full; } }); lpDirty = true; });
+
   // ---------------- HUD
   function updateUI(OUT) {
-    $('#clock').textContent = new Date(simT).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long', year: DATA.REPLAY.active ? 'numeric' : undefined, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    $('#clock').textContent = new Date(simT).toLocaleString(LOC(), { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long', year: DATA.REPLAY.active ? 'numeric' : undefined });
     const m = DATA.REPLAY.active ? 'archive' : DATA.mode;
-    $('#mode').textContent = DATA.REPLAY.active ? 'ARCHIVES ' + DATA.REPLAY.day : DATA.mode === 'live' ? 'DONNÉES RÉELLES' : 'SIMULATION'; $('#mode').className = 'mode-' + m;
-    $('#hud-reg').textContent = S.regime; $('#hud-reg').className = 'chip reg-' + S.regime; $('#hud-D').textContent = S.D;
-    $('#hud-lit').textContent = lastLitA.toLocaleString('fr-FR'); $('#hud-spin').textContent = Array.from(OUT.axisSpeed).filter(v => Math.abs(v) > 0.01).length;
-    let st = S.vanish ? 'disparue dans la fumée' : S.shutdown ? 'extinction nocturne' : S.special ? (S.special.kind === 'meteo' ? 'langage conventionnel : météo' : 'langage conventionnel : circulation') : opt.dusk ? 'nuit — tous les paramètres jouent' : 'jour — gros projecteurs et lasers débranchés';
-    if (S.antagonist) st += ` · flashes antagonistes (${S.antagonist.kind})`; $('#hud-state').textContent = st;
-    if (PB) $('#labelB-stats').textContent = `${lastLitB.toLocaleString('fr-FR')} allumés`;
-    $('#labelA-stats').textContent = `${lastLitA.toLocaleString('fr-FR')} allumés`;
+    $('#mode').textContent = DATA.REPLAY.active ? T('ARCHIVES ', 'ARCHIVE ') + DATA.REPLAY.day : DATA.mode === 'live' ? T('DONNÉES RÉELLES', 'LIVE DATA') : 'SIMULATION'; $('#mode').className = 'mode-' + m;
+    $('#hud-reg').textContent = tx(S.regime); $('#hud-reg').className = 'chip reg-' + S.regime; $('#hud-D').textContent = S.D;
+    $('#hud-lit').textContent = lastLitA.toLocaleString(LOC()); $('#hud-spin').textContent = Array.from(OUT.axisSpeed).filter(v => Math.abs(v) > 0.01).length;
+    let st = S.vanish ? T('disparue dans la fumée', 'hidden in smoke') : S.shutdown ? T('extinction nocturne', 'night shutdown') : S.special ? (S.special.kind === 'meteo' ? T('langage conventionnel : météo', 'conventional language: weather') : T('langage conventionnel : circulation', 'conventional language: traffic')) : opt.dusk ? T('nuit — tous les paramètres jouent', 'night — every parameter in play') : T('jour — gros projecteurs et lasers débranchés', 'day — large projectors and lasers disconnected');
+    if (S.antagonist) st += ` · ${T('flashes antagonistes', 'antagonist flashes')} (${tx(S.antagonist.kind)})`; $('#hud-state').textContent = st;
+    if (PB) $('#labelB-stats').textContent = `${lastLitB.toLocaleString(LOC())} ${T('allumés', 'lit')}`;
+    $('#labelA-stats').textContent = `${lastLitA.toLocaleString(LOC())} ${T('allumés', 'lit')}`;
     if (!$('#tab-capteurs').hidden) updateSensors(); if (!$('#tab-programme').hidden) updateProgramme(); if (!$('#tab-indifference').hidden) updateAbacus(); if (!$('#tab-schema').hidden) updateSchema();
-    if (!$('#tab-analyse').hidden) $('#rec-count').textContent = `${REC.rows.length} relevés · ${REC.events.length} événements`;
-    $('#live-count').textContent = `${DATA.channels.filter(c => LIVE_ST.includes(c.status)).length} / ${n} lignes réelles`;
+    if (!$('#tab-analyse').hidden) $('#rec-count').textContent = T(`${REC.rows.length} relevés · ${REC.events.length} événements`, `${REC.rows.length} readings · ${REC.events.length} events`);
+    $('#live-count').textContent = T(`${DATA.channels.filter(c => LIVE_ST.includes(c.status)).length} / ${n} lignes réelles`, `${DATA.channels.filter(c => LIVE_ST.includes(c.status)).length} / ${n} lines live`);
+    updateReadings();
+  }
+
+  // ---------------- top-left readings: the basic inputs at a glance
+  const RD = [
+    ['time', 'Nanterre', 'Nanterre'], ['thermo', 'Température', 'Temperature'], ['vent10', 'Vent au sol', 'Wind, ground'], ['vent180', 'Vent à 180 m', 'Wind, 180 m'],
+    ['circulation', 'Circulation', 'Traffic'], ['micro', 'Bruit', 'Noise'], ['sun', 'Soleil', 'Sun'], ['telephone', 'Bluesky (fr)', 'Bluesky (fr)']
+  ];
+  $('#readings').innerHTML = RD.map(([k]) => `<div class="rd" data-k="${k}"><span class="rk"><i></i><em></em></span><b></b></div>`).join('');
+  const nameReadings = () => RD.forEach(([k, fr, en]) => $(`#readings [data-k="${k}"] em`).textContent = T(fr, en)); nameReadings(); I18N.on(nameReadings);
+  function updateReadings() {
+    const C = DATA.byId, x = DATA.ctx, set = (k, v, ok, tip) => { const el = $(`#readings [data-k="${k}"]`); el.querySelector('b').textContent = v; el.classList.toggle('sim', !ok); el.title = tip || ''; };
+    const ok = id => LIVE_ST.includes(C[id].status), tip = id => `${I18N.chName(C[id])} · ${I18N.st(C[id].status)} · ${I18N.chSrc(C[id])}`;
+    set('time', new Date(simT).toLocaleTimeString(LOC(), { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', second: '2-digit' }), true, T('heure de Paris', 'Paris time'));
+    set('thermo', C.thermo.raw != null ? `${(+C.thermo.raw).toFixed(1)} °C` : '—', ok('thermo'), tip('thermo'));
+    const w = x.wind || {}; set('vent10', C.vent10.raw != null ? `${Math.round(C.vent10.raw)} km/h` : '—', ok('vent10'), tip('vent10'));
+    set('vent180', C.vent180.raw != null ? `${Math.round(C.vent180.raw)} km/h` : '—', ok('vent180'), tip('vent180'));
+    set('circulation', C.circulation.raw != null ? `${Math.round(C.circulation.raw)} ${T('véh/h', 'veh/h')}` : '—', ok('circulation'), tip('circulation') + T(' · relevés de la veille, même heure', ' · yesterday’s counts, same hour'));
+    set('micro', C.micro.raw != null ? `${(+C.micro.raw).toFixed(0)} dB` : '—', ok('micro'), tip('micro'));
+    const alt = x.sun ? x.sun.alt : 0; set('sun', `${alt > 0 ? '↑' : '↓'} ${alt.toFixed(0)}°${alt < -6 ? T(' · nuit', ' · night') : alt < 6 ? T(' · crépuscule', ' · twilight') : ''}`, true, T('hauteur du soleil au-dessus de La Défense', 'sun height above La Défense'));
+    set('telephone', C.telephone.raw != null ? `${(+C.telephone.raw).toFixed(0)}/min` : '—', ok('telephone'), tip('telephone'));
+  }
+
+  // ---------------- names of the buildings of La Défense in 1974, and the caption on the C.N.I.T.
+  const lblBox = $('#blabels');
+  const lblEls = (VIEW.defLabels || []).map(L => { const d = document.createElement('div'); d.className = 'bl ' + L.kind; lblBox.appendChild(d); return { L, d }; });
+  const nameLabels = () => lblEls.forEach(({ L, d }) => {
+    if (L.kind === 'cnit') d.innerHTML = T(`<b>C.N.I.T.</b> · 1958<span>Palais d’exposition de Camelot, de Mailly et Zehrfuss, ingénieur Nicolas Esquillan. Une voûte de béton à double coque, posée sur trois appuis distants de 218 m, haute de 46 m ; façades vitrées de Jean Prouvé. Premier bâtiment de La Défense : la maquette de 1963 plaçait la tour juste devant.</span>`,
+      `<b>C.N.I.T.</b> · 1958<span>Exhibition hall by Camelot, de Mailly and Zehrfuss, engineer Nicolas Esquillan. A double-shelled concrete vault resting on three supports 218 m apart, 46 m high at the crown; glass façades by Jean Prouvé. The first building at La Défense: the 1963 maquette set the tower directly in front of it.</span>`);
+    else d.innerHTML = `${L.t.n} <i>${L.t.y} · ${L.t.h} m${L.t.now ? ` · ${T('auj.', 'now')} ${L.t.now}` : ''}</i>`;
+  });
+  nameLabels(); I18N.on(nameLabels);
+  let showLabels = store.get('blabels', true);
+  const lblBtn = () => { $('#bl-toggle').classList.toggle('on', showLabels); lblBox.hidden = !showLabels; }; lblBtn();
+  $('#bl-toggle').addEventListener('click', () => { showLabels = !showLabels; store.set('blabels', showLabels); lblBtn(); });
+  function placeLabels() {
+    if (!showLabels || !viewOK) return;
+    const compare = document.body.classList.contains('compare'), placed = [];
+    lblEls.forEach(({ L, d }) => {
+      const p = VIEW.project(L.x, L.y, L.z);
+      const far = L.kind === 'cnit' ? p.d > 6000 : p.d > 4500 || p.d < 300;
+      if (!p.vis || far || compare) { d.style.display = 'none'; return; }
+      d.style.display = '';
+      if (L.kind === 'cnit') d.classList.toggle('full', p.d < 2600);
+      const w = d.offsetWidth || 80, h = d.offsetHeight || 14, r = { x0: p.x - w / 2, x1: p.x + w / 2, y0: p.y - h, y1: p.y };
+      if (placed.some(q => r.x0 < q.x1 && r.x1 > q.x0 && r.y0 < q.y1 && r.y1 > q.y0)) { d.style.display = 'none'; return; }
+      placed.push(r); d.style.transform = `translate(${(p.x - w / 2).toFixed(0)}px, ${(p.y - h).toFixed(0)}px)`;
+    });
   }
 
   // ---------------- settings
@@ -557,7 +626,7 @@
   $('#keys-save').addEventListener('click', () => {
     DATA.cfg.avKey = $('#av-key').value.trim(); DATA.cfg.avSymbol = $('#av-sym').value.trim() || 'EWQ'; DATA.cfg.primKey = $('#prim-key').value.trim();
     store.set('avKey', DATA.cfg.avKey); store.set('avSymbol', DATA.cfg.avSymbol); store.set('primKey', DATA.cfg.primKey);
-    if (DATA.mode === 'live') DATA.refreshKeys(); $('#keys-msg').textContent = 'Enregistré dans ce navigateur.';
+    if (DATA.mode === 'live') DATA.refreshKeys(); $('#keys-msg').textContent = T('Enregistré dans ce navigateur.', 'Saved in this browser.');
   });
   $$('input[name=shut]').forEach(r => { r.checked = r.value === opt.shutdownWindow.join('-'); r.addEventListener('change', () => { opt.shutdownWindow = r.value.split('-').map(Number); store.set('shutdown', opt.shutdownWindow); }); });
   $('#speed').addEventListener('change', e => { opt.speed = +e.target.value; });
@@ -581,6 +650,6 @@
     if (m === 'sim' && !/github\.io$/.test(location.hostname)) $('#simnote').hidden = false;
   });
   $('#simnote-close').addEventListener('click', () => $('#simnote').hidden = true);
-  window.TLC = { REC, analyse, get PB() { return PB; } };
+  window.TLC = { REC, analyse, choose, get PB() { return PB; } };
   requestAnimationFrame(loop);
 })();

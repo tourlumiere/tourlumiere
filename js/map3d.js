@@ -5,7 +5,7 @@
 const MAP3D = (function () {
   'use strict';
   let map = null, T = null, follow = true, sat = false;
-  const SOCLE = 26; // the socle's height (p. 132): level 0 of the ossature stands on it
+  const SOCLE = 29; // the socle's height (p. 48): level 0 of the ossature stands on it
 
   function m2ll(e, n) { const lat0 = DATA.SITE.lat, lon0 = DATA.SITE.lon; return [lon0 + e / (111320 * Math.cos(lat0 * Math.PI / 180)), lat0 + n / 111320]; }
   // world: +x east, +z south → east = x, north = −z
@@ -18,7 +18,7 @@ const MAP3D = (function () {
     const F = [];
     const add = (ring, base, top, color, kind) => F.push({ type: 'Feature', properties: { base, top, color, kind }, geometry: { type: 'Polygon', coordinates: [ring] } });
     // socle: inverted trapezoid, 40 m at the ground to 70 m at the slab, in three steps
-    [[0, 9, 46], [9, 18, 58], [18, SOCLE, 70]].forEach(([b, t, w]) => add(rect(0, 0, 1, 0, w, w), b, t, '#8a8780', 'socle'));
+    [[0, 10, 46], [10, 20, 58], [20, SOCLE, 70]].forEach(([b, t, w]) => add(rect(0, 0, 1, 0, w, w), b, t, '#8a8780', 'socle'));
     T.members.forEach(m => {
       const [ax, ay, az] = m.a, [bx, by, bz] = m.b;
       const dx = bx - ax, dz = bz - az, horiz = Math.hypot(dx, dz);
@@ -43,7 +43,7 @@ const MAP3D = (function () {
   function open(tower, where) {
     T = tower; place(where || 'large');
     if (map) { map.resize(); return; }
-    if (typeof maplibregl === 'undefined') { $id('m3d-info').textContent = 'MapLibre n’a pas pu être chargé.'; return; }
+    if (typeof maplibregl === 'undefined') { $id('m3d-info').textContent = I18N.T('MapLibre n’a pas pu être chargé.', 'MapLibre could not be loaded.'); return; }
     const site = [DATA.SITE.lon, DATA.SITE.lat];
     map = new maplibregl.Map(Object.assign({ container: 'm3d-map', style: 'https://tiles.openfreemap.org/styles/liberty', bearing: bearingNow(), maxPitch: 80, attributionControl: { compact: false } }, view(size)));
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
@@ -63,13 +63,13 @@ const MAP3D = (function () {
       const tip = $id('m3d-tip');
       if (!f) { tip.hidden = true; return; }
       tip.hidden = false; tip.style.left = (e.point.x + 12) + 'px'; tip.style.top = (e.point.y + 12) + 'px';
-      tip.textContent = f.layer.id === 'tlc' ? `T.L.C. · ${f.properties.kind} · ${Math.round(f.properties.top)} m` : `bâtiment · ${Math.round(f.properties.render_height || 0)} m${f.properties.name ? ' · ' + f.properties.name : ''}`;
+      tip.textContent = f.layer.id === 'tlc' ? `T.L.C. · ${f.properties.kind} · ${Math.round(f.properties.top)} m` : `${I18N.T('bâtiment', 'building')} · ${Math.round(f.properties.render_height || 0)} m${f.properties.name ? ' · ' + f.properties.name : ''}`;
     });
   }
   function tallest() {
     if (!map || !map.getLayer('building-3d')) return;
     let best = 0; map.queryRenderedFeatures({ layers: ['building-3d'] }).forEach(f => { best = Math.max(best, f.properties.render_height || 0); });
-    $id('m3d-info').innerHTML = `T.L.C. : <b>${SOCLE + T.H} m</b> au-dessus du sol (socle ${SOCLE} m + ossature ${T.H} m), sans les mâts · plus haut bâtiment dans le champ : <b>${Math.round(best)} m</b> (hauteurs OpenStreetMap, parfois estimées)`;
+    $id('m3d-info').innerHTML = I18N.T(`T.L.C. : <b>${SOCLE + T.H} m</b> au-dessus du sol (socle ${SOCLE} m + ossature ${T.H} m), sans les mâts · plus haut bâtiment dans le champ : <b>${Math.round(best)} m</b> (hauteurs OpenStreetMap, parfois estimées)`, `T.L.C.: <b>${SOCLE + T.H} m</b> above the ground (socle ${SOCLE} m + frame ${T.H} m), without the masts · tallest building in view: <b>${Math.round(best)} m</b> (OpenStreetMap heights, sometimes estimated)`);
   }
   function bearingNow() { const c = VIEW.cam; return ((-c.az * 180 / Math.PI) % 360 + 360) % 360; }
   function sync() { if (map && follow && size) map.jumpTo({ bearing: bearingNow() }); }

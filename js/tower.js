@@ -208,7 +208,7 @@ const TOWER = (function () {
     // aviation lamps, outside the programme
     [[18, H, -11.5], [-18, H, 11.5], [18, H, 11.5], [-18, H, -11.5], [6, H + 15, -6], [18, 201, -11.5], [-18, 201, 11.5], [18, 118, 11.5], [-18, 118, -11.5]].forEach(p => beacons.push(p));
 
-    return { CX, CZ, SOCLE: { top: 70, bottom: 40, h: 26 }, H, LEVELS, PLATFORMS, members, arms, axes, curved, organs, smoke, beacons, COLOURS, RGB, DIRS, DIRNAME };
+    return { CX, CZ, SOCLE: { top: 70, bottom: 40, h: 29 }, H, LEVELS, PLATFORMS, members, arms, axes, curved, organs, smoke, beacons, COLOURS, RGB, DIRS, DIRNAME };
   }
   return { build, rng, COLOURS, RGB };
 })();

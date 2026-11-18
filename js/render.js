@@ -5,14 +5,14 @@ function makeView(sharedCam, opts) {
   const DRIVER = !opts || opts.driver !== false;
   'use strict';
   let renderer, scene, camera, composer, bloom, T, canvas;
-  let groundMesh = null;
+  let groundMesh = null, socleGlass = null; const defMats = [];
   let memberMesh, mirrorMesh, curvedMesh, lightPts, lightGeo, beaconPts, beams = [], lasers = [], smokePts, smokeGeo, sky, stars, cityPts, hemi, sun, bandLights = [];
   const cam = sharedCam || { az: 0.32, el: 0.1, dist: 720, target: new THREE.Vector3(0, 165, 0), auto: true };
   const mirrorAngle = new Float32Array(400);
   const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpV = new THREE.Vector3(), tmpS = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
   let lightColAttr, lightIAttr, lightSizeAttr;
   const SMOKE_N = 5000; let smokeHead = 0; const smokeVel = new Float32Array(SMOKE_N * 3), smokeLife = new Float32Array(SMOKE_N), smokeAge = new Float32Array(SMOKE_N);
-  const GROUND = -26;
+  const GROUND = -29; // socle 29 m high (p. 48)
   let hasBloom = false;
 
   function init(el, tower) {
@@ -62,19 +62,46 @@ function makeView(sharedCam, opts) {
     cg.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3)); cg.setAttribute('color', new THREE.Float32BufferAttribute(cc, 3));
     cityPts = new THREE.Points(cg, new THREE.PointsMaterial({ size: 2.2, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.85, depthWrite: false }));
     scene.add(cityPts);
-    // a few 1970s towers of La Défense, and the CNIT vault
-    const bmat = new THREE.MeshLambertMaterial({ color: 0x2a2e36 });
-    // zone A of La Défense, about 1 km to the east (p. 70): a few towers of the 1970s
-    [[1050, 370, 75, 30], [1110, 190, 90, 32], [1190, 410, 82, 28], [1270, 290, 70, 34], [1330, 110, 95, 30], [1400, 340, 60, 26], [1470, 210, 88, 30], [1130, 510, 55, 28], [1550, 400, 70, 24]].forEach(([x, z, h, w]) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h * 2.2, w * 0.6), bmat); m.position.set(x, GROUND + h * 1.1, z); scene.add(m);
-    });
-    const cnit = new THREE.Mesh(new THREE.SphereGeometry(120, 3, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x5a5f66 }));
-    cnit.scale.set(1, 0.38, 1); cnit.rotation.y = Math.PI / 6; cnit.position.set(1150, GROUND, 290); scene.add(cnit); // C.N.I.T., ~1.2 km east-south-east
+    if (typeof DEF74 !== 'undefined') buildDefense();
 
-    // ----- socle (70 m × 70 m slab, trapezoidal)
-    // socle as drawn on p. 132: an inverted trapezoid, 70 m at the slab, about 40 m at the ground, 26 m high
-    const socle = new THREE.Mesh(new THREE.CylinderGeometry(70 / Math.SQRT2, 40 / Math.SQRT2, -GROUND, 4, 1), new THREE.MeshLambertMaterial({ color: 0x6d6a64 }));
-    socle.rotation.y = Math.PI / 4; socle.position.y = GROUND / 2; scene.add(socle);
+    // ----- socle (pp. 26, 48, 72, 80): concrete, inverted trapezoid, 70 m × 70 m slab, 29 m high,
+    // 37,000 m² of halls (exhibition, documentation centre, cybernetic centre, restaurants, cinemas);
+    // its east façade is a curtain wall. Ground width ~40 m read off the façade drawing (p. 132).
+    const SH = -GROUND, TOP = 35, BOT = 20;
+    function floorsTex(glass) {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 256; const g = c.getContext('2d');
+      g.fillStyle = glass ? '#2c3540' : '#7c7a74'; g.fillRect(0, 0, 256, 256);
+      const floors = 7;
+      for (let f = 0; f < floors; f++) {
+        const y = f * 256 / floors;
+        if (glass) { g.fillStyle = '#3f4b58'; g.fillRect(0, y + 3, 256, 256 / floors - 6); g.fillStyle = '#1b2026'; for (let x = 0; x < 256; x += 16) g.fillRect(x, y, 2, 256 / floors); }
+        else { g.fillStyle = '#6a6862'; g.fillRect(0, y, 256, 3); g.fillStyle = '#5d5c58'; for (let x = 6; x < 256; x += 22) g.fillRect(x, y + 12, 9, 14); }
+        g.fillStyle = glass ? '#151a1f' : '#605e59'; g.fillRect(0, y, 256, 2);
+      }
+      const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+    }
+    function nightTex() { // lit halls behind the curtain wall
+      const c = document.createElement('canvas'); c.width = 256; c.height = 256; const g = c.getContext('2d');
+      g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256);
+      for (let f = 0; f < 7; f++) for (let x = 0; x < 256; x += 16) { const on = Math.random() < 0.7; if (!on) continue; const w = 0.5 + Math.random() * 0.5; g.fillStyle = `rgb(${Math.round(255 * w)},${Math.round(200 * w)},${Math.round(130 * w)})`; g.fillRect(x + 2, f * 256 / 7 + 4, 13, 256 / 7 - 8); }
+      return new THREE.CanvasTexture(c);
+    }
+    function quad(a, b, c2, d, mat) { // a,b top (left,right), c2,d bottom (right,left)
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute([...a, ...b, ...c2, ...a, ...c2, ...d], 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 4, 1, 4, 0, 0, 1, 4, 0, 0, 0], 2));
+      g.computeVertexNormals(); const m = new THREE.Mesh(g, mat); m.material.side = THREE.DoubleSide; scene.add(m); return m;
+    }
+    const conc = new THREE.MeshLambertMaterial({ map: floorsTex(false) }); conc.map.repeat.set(1, 1);
+    socleGlass = new THREE.MeshLambertMaterial({ map: floorsTex(true), emissiveMap: nightTex(), emissive: new THREE.Color(0, 0, 0) });
+    const y0 = 0, y1 = GROUND;
+    quad([TOP, y0, -TOP], [TOP, y0, TOP], [BOT, y1, BOT], [BOT, y1, -BOT], socleGlass);          // east: curtain wall
+    quad([-TOP, y0, TOP], [-TOP, y0, -TOP], [-BOT, y1, -BOT], [-BOT, y1, BOT], conc);              // west
+    quad([TOP, y0, TOP], [-TOP, y0, TOP], [-BOT, y1, BOT], [BOT, y1, BOT], conc);                  // south
+    quad([-TOP, y0, -TOP], [TOP, y0, -TOP], [BOT, y1, -BOT], [-BOT, y1, -BOT], conc);              // north
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(70, 1.2, 70), new THREE.MeshLambertMaterial({ color: 0x8f8c85 })); slab.position.y = -0.6; scene.add(slab);
+    // the promenade's parapet
+    [[0, 34.6, 70, 0.4], [0, -34.6, 70, 0.4], [34.6, 0, 0.4, 70], [-34.6, 0, 0.4, 70]].forEach(([x, z, w, d]) => { const p = new THREE.Mesh(new THREE.BoxGeometry(w, 1.1, d), new THREE.MeshLambertMaterial({ color: 0x9a978f })); p.position.set(x, 0.55, z); scene.add(p); });
 
     // ----- the ossature: square Corten tubes
     const box = new THREE.BoxGeometry(1, 1, 1);
@@ -230,6 +257,8 @@ function makeView(sharedCam, opts) {
     sky.material.uniforms.uHor.value.setRGB(...SC.hor);
     sky.material.uniforms.uTop.value.setRGB(...SC.top);
     if (groundMesh) groundMesh.material.color.setRGB(...SC.ground);
+    if (socleGlass) socleGlass.emissive.setScalar(Math.max(0, 1 - dl * 1.5) * 0.9);
+    defMats.forEach((m, k) => m.emissive.setScalar(Math.max(0, 1 - dl * 1.5) * (k ? 0.18 : 0.75)));
     const azr = ctx.sun.az * Math.PI / 180, altr = alt * Math.PI / 180;
     const sunDir = new THREE.Vector3(Math.sin(azr) * Math.cos(altr), Math.sin(altr), -Math.cos(azr) * Math.cos(altr)); // az from north, clockwise; +x east, +z south
     sky.material.uniforms.uSunDir.value.copy(sunDir);
@@ -403,8 +432,68 @@ function makeView(sharedCam, opts) {
     const g = 0.18 + 0.55 * dl; smokePts.material.uniforms.uCol.value.setRGB(g, g, g * 1.04);
   }
 
-  function project(x, y, z) { const v = new THREE.Vector3(x, y, z).project(camera); return { x: (v.x + 1) / 2 * canvas.clientWidth, y: (1 - v.y) / 2 * canvas.clientHeight }; }
+  function project(x, y, z) { const v = new THREE.Vector3(x, y, z).project(camera); return { x: (v.x + 1) / 2 * canvas.clientWidth, y: (1 - v.y) / 2 * canvas.clientHeight, vis: v.z > -1 && v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1, d: camera.position.distanceTo(new THREE.Vector3(x, y, z)) }; }
+
+  // ----- La Défense in 1974: the C.N.I.T. vault and the towers standing when the book appeared
+  function windowsTex(lit) {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 64; const g = c.getContext('2d');
+    g.fillStyle = lit ? '#000' : '#30343b'; g.fillRect(0, 0, 64, 64);
+    for (let f = 0; f < 4; f++) for (let x = 0; x < 8; x++) {
+      if (lit) { if (Math.random() < 0.45) continue; const w = 0.55 + Math.random() * 0.45; g.fillStyle = `rgb(${Math.round(255 * w)},${Math.round(226 * w)},${Math.round(170 * w)})`; }
+      else g.fillStyle = (x + f) % 3 ? '#454b55' : '#3c424b';
+      g.fillRect(x * 8 + 1, f * 16 + 3, 6, 10);
+    }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / 16, 1 / 14); return t;
+  }
+  const defLabels = [];
+  function buildDefense() {
+    // towers: OSM footprints extruded to their 1974 heights
+    const tmat = new THREE.MeshLambertMaterial({ map: windowsTex(false), emissiveMap: windowsTex(true), emissive: new THREE.Color(0, 0, 0) });
+    defMats.push(tmat);
+    DEF74.towers.forEach(tw => {
+      const sh = new THREE.Shape(tw.p.map(([x, z]) => new THREE.Vector2(x, -z)));
+      const g = new THREE.ExtrudeGeometry(sh, { depth: tw.h, bevelEnabled: false });
+      const m = new THREE.Mesh(g, tmat); m.rotation.x = -Math.PI / 2; m.position.y = GROUND; scene.add(m);
+      const cx = tw.p.reduce((s, p) => s + p[0], 0) / tw.p.length, cz = tw.p.reduce((s, p) => s + p[1], 0) / tw.p.length;
+      defLabels.push({ kind: 'tower', t: tw, x: cx, y: GROUND + tw.h + 6, z: cz });
+    });
+    // the C.N.I.T. (1958): a groin vault on an equilateral triangle, three supports 218 m apart, crown at 46 m,
+    // the three façades glazed under their arches. Each lobe is a barrel whose section is the façade arch,
+    // cut by its neighbours along the three groins that run from the supports up to the crown.
+    const [P0, P1, P2] = DEF74.cnit.map(([x, z]) => new THREE.Vector2(x, z));
+    const G = P0.clone().add(P1).add(P2).multiplyScalar(1 / 3), H = 48;
+    const prof = s => H * Math.pow(Math.max(0, Math.sin(Math.PI * s)), 0.72);
+    const pos = [], fac = [], NS = 40, NW = 16;
+    [[P0, P1], [P1, P2], [P2, P0]].forEach(([P, Q]) => {
+      const pt = (s, w) => { const E = P.clone().lerp(Q, s); const Gs = s <= 0.5 ? P.clone().lerp(G, 2 * s) : Q.clone().lerp(G, 2 * (1 - s)); const R = E.lerp(Gs, w); return [R.x, GROUND + prof(s), R.y]; };
+      for (let i = 0; i < NS; i++) for (let j = 0; j < NW; j++) {
+        const a = pt(i / NS, j / NW), b = pt((i + 1) / NS, j / NW), c = pt((i + 1) / NS, (j + 1) / NW), d = pt(i / NS, (j + 1) / NW);
+        pos.push(...a, ...b, ...c, ...a, ...c, ...d);
+      }
+      // glazed façade under the arch, set back 3 m from the shell's edge
+      const inw = G.clone().sub(P.clone().lerp(Q, 0.5)).normalize().multiplyScalar(3);
+      for (let i = 0; i < NS; i++) {
+        const s0 = i / NS, s1 = (i + 1) / NS, e0 = P.clone().lerp(Q, s0).add(inw), e1 = P.clone().lerp(Q, s1).add(inw);
+        const h0 = Math.max(0, prof(s0) - 2.5), h1 = Math.max(0, prof(s1) - 2.5);
+        fac.push(e0.x, GROUND, e0.y, e1.x, GROUND, e1.y, e1.x, GROUND + h1, e1.y, e0.x, GROUND, e0.y, e1.x, GROUND + h1, e1.y, e0.x, GROUND + h0, e0.y);
+      }
+    });
+    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); sg.computeVertexNormals();
+    const shell = new THREE.Mesh(sg, new THREE.MeshLambertMaterial({ color: 0xb9b4aa, side: THREE.DoubleSide })); scene.add(shell);
+    const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.Float32BufferAttribute(fac, 3));
+    const fu = []; for (let k = 0; k < fac.length / 3; k++) fu.push(fac[k * 3] / 6 + fac[k * 3 + 2] / 6, (fac[k * 3 + 1] - GROUND) / 6); fg.setAttribute('uv', new THREE.Float32BufferAttribute(fu, 2)); fg.computeVertexNormals();
+    const mc = document.createElement('canvas'); mc.width = mc.height = 32; const mg = mc.getContext('2d'); mg.fillStyle = '#1f2a33'; mg.fillRect(0, 0, 32, 32); mg.fillStyle = '#56646f'; mg.fillRect(0, 0, 32, 2); mg.fillRect(0, 0, 2, 32);
+    const mt = new THREE.CanvasTexture(mc); mt.wrapS = mt.wrapT = THREE.RepeatWrapping;
+    const glass = new THREE.MeshLambertMaterial({ map: mt, side: THREE.DoubleSide, emissive: new THREE.Color(0, 0, 0), transparent: true, opacity: 0.88 });
+    defMats.push(glass); scene.add(new THREE.Mesh(fg, glass));
+    // the groins, drawn as lines so the vault reads at a distance, and the three abutments
+    const gl = []; [P0, P1, P2].forEach(P => { for (let k = 0; k < 24; k++) { const a = P.clone().lerp(G, k / 24), b = P.clone().lerp(G, (k + 1) / 24); gl.push(a.x, GROUND + prof(k / 48) + 0.4, a.y, b.x, GROUND + prof((k + 1) / 48) + 0.4, b.y); } });
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(gl, 3));
+    scene.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x8d887e })));
+    [P0, P1, P2].forEach(P => { const b = new THREE.Mesh(new THREE.BoxGeometry(14, 6, 14), new THREE.MeshLambertMaterial({ color: 0x8f8c85 })); b.position.set(P.x, GROUND + 3, P.y); scene.add(b); });
+    defLabels.unshift({ kind: 'cnit', x: G.x, y: GROUND + H + 8, z: G.y });
+  }
   function dispose() { try { renderer.dispose(); renderer.forceContextLoss(); } catch (e) { } window.removeEventListener('resize', resize); }
-  return { init, frame, preset, cam, resize, dispose, project, setOnPick, select, get hasBloom() { return hasBloom; } };
+  return { init, frame, preset, cam, resize, dispose, project, setOnPick, select, defLabels, get hasBloom() { return hasBloom; } };
 }
 const VIEW = makeView();
