@@ -166,6 +166,8 @@ a.back{color:var(--ochre);text-decoration:none;border:1px solid var(--line);padd
 .plan span{display:inline-block;margin:0 8px 3px 0;font-size:12px;color:var(--dim)}.plan span.on{color:var(--paper);border-bottom:1px solid var(--ochre)}.plan span.past{opacity:.55}
 #pick{top:300px}
 #hud{z-index:2}
+#navpad{position:fixed;right:420px;bottom:16px;display:grid;grid-template-columns:repeat(3,30px);gap:3px;z-index:3}body.panel-closed #navpad{right:16px}
+#navpad button{width:30px;height:28px;background:rgba(20,18,15,.82);color:var(--paper);border:1px solid var(--line);font:inherit;font-size:13px;cursor:pointer;padding:0}#navpad button:hover{border-color:var(--ochre)}
 #views select{background:#14120f;color:var(--paper);border:1px solid var(--line);font:inherit;font-size:11px}
 a.back{color:var(--ochre);text-decoration:none;border:1px solid var(--line);padding:3px 8px;font-size:11px}
 </style>
@@ -181,9 +183,13 @@ a.back{color:var(--ochre);text-decoration:none;border:1px solid var(--line);padd
   <div id="readings"></div>
   <div class="row"><span id="mode">—</span><span id="hud-state" class="k"></span></div>
 </div>
-<div id="legend"><span><i style="background:rgb(242,184,89)"></i><span lang="fr">travailleur</span><span lang="en">worker</span></span><span><i style="background:rgb(242,115,140)"></i><span lang="fr">personnel des loisirs</span><span lang="en">leisure staff</span></span><span><i style="background:rgb(140,217,242)"></i><span lang="fr">étudiant</span><span lang="en">student</span></span><span><i style="background:rgb(153,242,128)"></i><span lang="fr">enfant</span><span lang="en">child</span></span><span><i style="background:rgb(204,191,242)"></i><span lang="fr">retraité</span><span lang="en">retired</span></span><span lang="fr">· cliquer un habitant pour le suivre · cliquer un nom de bâtiment · glisser : tourner · maj+glisser : déplacer · molette : distance</span><span lang="en">· click an inhabitant to follow them · click a building name · drag: rotate · shift+drag: move · wheel: distance</span></div>
+<div id="legend"><span><i style="background:rgb(242,184,89)"></i><span lang="fr">travailleur</span><span lang="en">worker</span></span><span><i style="background:rgb(242,115,140)"></i><span lang="fr">personnel des loisirs</span><span lang="en">leisure staff</span></span><span><i style="background:rgb(140,217,242)"></i><span lang="fr">étudiant</span><span lang="en">student</span></span><span><i style="background:rgb(153,242,128)"></i><span lang="fr">enfant</span><span lang="en">child</span></span><span><i style="background:rgb(204,191,242)"></i><span lang="fr">retraité</span><span lang="en">retired</span></span><span lang="fr">· glisser : se déplacer · clic droit ou maj + glisser : tourner et incliner · molette : zoom vers le pointeur · double-clic : s’approcher · flèches : se déplacer · cliquer un nom : y aller · cliquer un habitant : le suivre</span><span lang="en">· drag: move around · right-drag or shift+drag: turn and tilt · wheel: zoom toward the pointer · double-click: fly in · arrow keys: move · click a name: go there · click an inhabitant: follow them</span></div>
 <div id="views"><a class="back" href="../"><span lang="fr">← la Tour Lumière</span><span lang="en">← the Light Tower</span></a><button data-v="ensemble"><span lang="fr">vue d’ensemble</span><span lang="en">overview</span></button><button data-v="travail"><span lang="fr">ville de travail</span><span lang="en">work city</span></button><button data-v="residence"><span lang="fr">ville résidentielle</span><span lang="en">residential city</span></button><button data-v="theatre"><span lang="fr">théâtre</span><span lang="en">theatre</span></button><button data-v="cls"><span lang="fr">centre de loisirs</span><span lang="en">leisure centre</span></button><button id="follow"><span lang="fr">suivre un habitant</span><span lang="en">follow an inhabitant</span></button><button id="snd-toggle"><span lang="fr">son</span><span lang="en">sound</span></button><button id="bl-toggle"><span lang="fr">noms</span><span lang="en">names</span></button><select id="speed"><option value="1" data-en="real time">temps réel</option><option value="10">× 10</option><option value="30" selected>× 30</option><option value="120">× 120</option><option value="600">× 600</option></select></div>
 
+<div id="navpad"><button data-n="up" title="incliner" data-title-en="tilt up">▲</button><button data-n="n" title="avancer" data-title-en="move forward">↑</button><button data-n="in" title="zoomer" data-title-en="zoom in">＋</button>
+<button data-n="w" title="à gauche" data-title-en="move left">←</button><button data-n="north" title="nord en haut" data-title-en="north up">N</button><button data-n="e" title="à droite" data-title-en="move right">→</button>
+<button data-n="down" title="redresser" data-title-en="tilt down">▼</button><button data-n="s" title="reculer" data-title-en="move back">↓</button><button data-n="out" title="dézoomer" data-title-en="zoom out">－</button>
+<button data-n="left" title="tourner à gauche" data-title-en="turn left">⟲</button><span></span><button data-n="right" title="tourner à droite" data-title-en="turn right">⟳</button></div>
 <div id="langsw"><button data-ui="fr">FR</button><button data-ui="en">EN</button></div>
 <button id="panel-toggle">☰</button>
 <aside id="panel">
@@ -269,10 +275,10 @@ a.back{color:var(--ochre);text-decoration:none;border:1px solid var(--line);padd
   <button id="start"><span lang="fr">Mettre en marche</span><span lang="en">Start</span></button>
 </div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="../js/i18n.js?v=1795104654"></script>
-<script src="../js/data.js?v=1795104654"></script>
-<script src="../js/sound.js?v=1795104654"></script>
-<script src="../js/ville.js?v=1795104654"></script>
-<script src="../js/ville_ui.js?v=1795104654"></script>
+<script src="../js/i18n.js?v=1795105210"></script>
+<script src="../js/data.js?v=1795105210"></script>
+<script src="../js/sound.js?v=1795105210"></script>
+<script src="../js/ville.js?v=1795105210"></script>
+<script src="../js/ville_ui.js?v=1795105210"></script>
 </body>
 </html>

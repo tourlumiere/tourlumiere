@@ -29,6 +29,7 @@
   $('#panel-toggle').addEventListener('click', () => document.body.classList.toggle('panel-closed'));
   $$('#views [data-v]').forEach(b => b.addEventListener('click', () => { V.preset(b.dataset.v); pickId = -1; V.follow(-1); }));
   $('#follow').addEventListener('click', () => { const awake = V.agents.filter(a => a.act !== 'sommeil'); const a = (awake.length ? awake : V.agents)[Math.floor(Math.random() * (awake.length || V.agents.length))]; choose(a.id); });
+  $$('#navpad [data-n]').forEach(b => b.addEventListener('click', () => V.nav(b.dataset.n)));
   $('#speed').addEventListener('change', e => V.speed = +e.target.value);
   $('#btn-now').addEventListener('click', () => { V.simT = Date.now(); });
   $('#snd-toggle').addEventListener('click', () => { SOUND.on ? SOUND.stop() : SOUND.start(); $('#snd-toggle').classList.toggle('on', SOUND.on); });
@@ -153,7 +154,7 @@
     tours: [['Sculptures-tours', 'Aux grands carrefours, des sculptures cybernétiques fixes servent de signaux aux parcelles du territoire ; leurs mouvements, lumières et sonorisation sont commandés par le cerveau central, et leur agitation accrue peut annoncer le mauvais temps : à certaines heures elles sont des baromètres, à d’autres elles donnent des informations « économiques, sportives, politiques » (p. 184). Des sculptures autonomes plus petites circulent parmi les passants, munies de radars (p. 181–182).'], ['Sculpture-towers', 'At the great crossroads, fixed cybernetic sculptures act as signals of their parcels of territory; their movements, lights and sound are commanded by the central brain, and their increased agitation can announce bad weather: at certain hours they are barometers, at others they give “économiques, sportives, politiques” information (p. 184). Smaller autonomous sculptures, fitted with radar, circulate among the passers-by (pp. 181–182).']]
   };
   Object.keys(BLD).forEach(k => BLD[k] = { fr: BLD[k][0], en: BLD[k][1] });
-  const lbox = $('#blabels'), lels = V.labels.map(L => { const d = document.createElement('div'); d.className = 'bl city'; lbox.appendChild(d); d.addEventListener('click', () => { pickBld = L.id; pickId = -1; V.follow(-1); $('#pick').hidden = false; explain(); }); return { L, d }; });
+  const lbox = $('#blabels'), lels = V.labels.map(L => { const d = document.createElement('div'); d.className = 'bl city'; lbox.appendChild(d); d.addEventListener('click', () => { pickBld = L.id; pickId = -1; V.follow(-1); V.flyToPlace(L.id); $('#pick').hidden = false; explain(); }); return { L, d }; });
   const nameL = () => lels.forEach(({ L, d }) => { const b = BLD[L.id]; d.innerHTML = `${T(b.fr[0], b.en[0])}${V.PL[L.id] && V.PL[L.id].page ? ` <i>p. ${V.PL[L.id].page}</i>` : ''}`; }); nameL(); I18N.on(nameL);
   function placeLabels() {
     if (!showL) return; const placed = [];

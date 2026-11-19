@@ -461,17 +461,90 @@ const VILLE = (function () {
   }
 
   // ---------------- controls
+  // ---------------- navigation, map-style: drag moves over the ground, right- or shift-drag turns and tilts,
+  // the wheel zooms toward the pointer, double-click flies in, keys and on-screen buttons do the same
+  function applyCam() {
+    const ce = Math.cos(cam.el);
+    camera.position.set(cam.target.x + Math.sin(cam.az) * ce * cam.dist, cam.target.y + Math.sin(cam.el) * cam.dist, cam.target.z + Math.cos(cam.az) * ce * cam.dist);
+    camera.lookAt(cam.target); camera.updateMatrixWorld();
+  }
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  function groundAt(px, py, y = 0) { // the point of the plane at height y under the pointer
+    applyCam(); ndc.set(px / canvas.clientWidth * 2 - 1, -(py / canvas.clientHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
+    const o = ray.ray.origin, d = ray.ray.direction; if (Math.abs(d.y) < 1e-4) return null; const t = (y - o.y) / d.y; if (t < 0 || t > 30000) return null;
+    return new THREE.Vector3(o.x + d.x * t, y, o.z + d.z * t);
+  }
+  let fly = null;
+  function flyTo(x, y, z, dist, el) { fly = { from: { x: cam.target.x, y: cam.target.y, z: cam.target.z, dist: cam.dist, el: cam.el }, to: { x, y, z, dist, el: el ?? cam.el }, t: 0 }; cam.follow = -1; }
+  function stepFly(dt) {
+    if (!fly) return; fly.t = Math.min(1, fly.t + dt / 0.9); const e = fly.t < 0.5 ? 2 * fly.t * fly.t : 1 - Math.pow(-2 * fly.t + 2, 2) / 2, f = fly.from, g = fly.to;
+    cam.target.set(lerp(f.x, g.x, e), lerp(f.y, g.y, e), lerp(f.z, g.z, e)); cam.dist = Math.exp(lerp(Math.log(f.dist), Math.log(g.dist), e)); cam.el = lerp(f.el, g.el, e); if (fly.t >= 1) fly = null;
+  }
+  function zoomAt(px, py, factor) {
+    const before = px == null ? null : groundAt(px, py, cam.target.y);
+    const nd = clamp(cam.dist * factor, 18, 9000), k = 1 - nd / cam.dist; cam.dist = nd;
+    if (before) { cam.target.x += (before.x - cam.target.x) * k; cam.target.z += (before.z - cam.target.z) * k; }
+    cam.follow = -1; fly = null;
+  }
+  function panBy(dx, dz) { const s = Math.sin(cam.az), c = Math.cos(cam.az); cam.target.x += dx * c + dz * s; cam.target.z += -dx * s + dz * c; cam.follow = -1; fly = null; }
+  const keys = new Set();
+  function stepKeys(dt) {
+    if (!keys.size) return; const v = cam.dist * 0.9 * dt;
+    if (keys.has('ArrowLeft') || keys.has('a') || keys.has('q')) panBy(-v, 0); if (keys.has('ArrowRight') || keys.has('d')) panBy(v, 0);
+    if (keys.has('ArrowUp') || keys.has('w') || keys.has('z')) panBy(0, -v); if (keys.has('ArrowDown') || keys.has('s')) panBy(0, v);
+    if (keys.has('e')) cam.az -= 1.2 * dt; if (keys.has('r')) cam.az += 1.2 * dt;
+    if (keys.has('t')) cam.el = clamp(cam.el + 0.8 * dt, 0.03, 1.5); if (keys.has('g')) cam.el = clamp(cam.el - 0.8 * dt, 0.03, 1.5);
+    if (keys.has('+') || keys.has('=')) zoomAt(null, null, 1 - 1.5 * dt); if (keys.has('-') || keys.has('_')) zoomAt(null, null, 1 + 1.5 * dt);
+  }
   function controls() {
-    let drag = null;
-    canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, az: cam.az, el: cam.el, t: cam.target.clone(), shift: e.shiftKey || e.button === 2, moved: 0 }; canvas.setPointerCapture(e.pointerId); });
-    canvas.addEventListener('pointermove', e => {
-      if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved = Math.max(drag.moved, Math.abs(dx) + Math.abs(dy));
-      if (drag.shift) { const k = cam.dist / 900, s = Math.sin(cam.az), c = Math.cos(cam.az); cam.target.set(drag.t.x - (dx * c - dy * s) * k, 0, drag.t.z + (dx * s + dy * c) * k * -1); cam.follow = -1; }
-      else { cam.az = drag.az - dx * 0.005; cam.el = clamp(drag.el + dy * 0.004, 0.03, 1.45); }
+    const pts = new Map(); let drag = null, pinch = null;
+    canvas.addEventListener('pointerdown', e => {
+      canvas.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.offsetX, y: e.offsetY }); fly = null;
+      if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), ang: Math.atan2(b.y - a.y, b.x - a.x), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; drag = null; return; }
+      drag = { x: e.offsetX, y: e.offsetY, rot: e.button === 2 || e.shiftKey || e.altKey || e.ctrlKey, moved: 0, grab: groundAt(e.offsetX, e.offsetY, cam.target.y) };
     });
-    canvas.addEventListener('pointerup', e => { if (drag && drag.moved < 4 && onPick) onPick(pickAgent(e.offsetX, e.offsetY)); drag = null; });
-    canvas.addEventListener('wheel', e => { e.preventDefault(); cam.dist = clamp(cam.dist * Math.exp(e.deltaY * 0.0012), 60, 9000); }, { passive: false });
+    canvas.addEventListener('pointermove', e => {
+      if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+      if (pinch && pts.size === 2) {
+        const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y), ang = Math.atan2(b.y - a.y, b.x - a.x), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        zoomAt(mx, my, pinch.d / Math.max(10, d)); cam.az -= ang - pinch.ang;
+        const p0 = groundAt(pinch.mx, pinch.my, cam.target.y), p1 = groundAt(mx, my, cam.target.y); if (p0 && p1) { cam.target.x += p0.x - p1.x; cam.target.z += p0.z - p1.z; }
+        pinch = { d, ang, mx, my }; return;
+      }
+      if (!drag) return;
+      const dx = e.offsetX - drag.x, dy = e.offsetY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy);
+      if (drag.rot) { cam.az -= dx * 0.006; cam.el = clamp(cam.el + dy * 0.004, 0.03, 1.5); }
+      else { // grab the ground and drag it, as on a map
+        const p = groundAt(e.offsetX, e.offsetY, cam.target.y);
+        if (drag.grab && p) { cam.target.x += drag.grab.x - p.x; cam.target.z += drag.grab.z - p.z; cam.follow = -1; }
+        else panBy(-dx * cam.dist / 900, -dy * cam.dist / 900);
+      }
+      drag.x = e.offsetX; drag.y = e.offsetY;
+    });
+    const up = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; if (drag && drag.moved < 5 && e.type === 'pointerup' && onPick) onPick(pickAgent(e.offsetX, e.offsetY)); drag = null; };
+    canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      if (e.ctrlKey || Math.abs(e.deltaY) >= Math.abs(e.deltaX)) zoomAt(e.offsetX, e.offsetY, Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
+      else panBy(e.deltaX * cam.dist / 900, 0);
+    }, { passive: false });
+    canvas.addEventListener('dblclick', e => { const p = groundAt(e.offsetX, e.offsetY, 0); if (p) flyTo(p.x, 10, p.z, Math.max(60, cam.dist * 0.35)); });
     canvas.addEventListener('contextmenu', e => e.preventDefault());
+    canvas.tabIndex = 0;
+    addEventListener('keydown', e => { if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return; const k = e.key.length === 1 ? e.key.toLowerCase() : e.key; keys.add(k); if (k.startsWith('Arrow')) e.preventDefault(); });
+    addEventListener('keyup', e => keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key));
+    addEventListener('blur', () => keys.clear());
+  }
+  function nav(cmd) { // on-screen buttons
+    const v = cam.dist * 0.25;
+    ({ in: () => zoomAt(null, null, 0.7), out: () => zoomAt(null, null, 1.4), left: () => { cam.az += 0.35; }, right: () => { cam.az -= 0.35; }, up: () => { cam.el = clamp(cam.el + 0.15, 0.03, 1.5); }, down: () => { cam.el = clamp(cam.el - 0.15, 0.03, 1.5); },
+      n: () => panBy(0, -v), s: () => panBy(0, v), w: () => panBy(-v, 0), e: () => panBy(v, 0), north: () => { cam.az = 0; } })[cmd]();
+  }
+  const FLY = { univ: [0, 200, 0, 900], admin: [0, 110, 0, 520], rech: [0, 70, 0, 420], relax: [0, 15, 0, 220], theatre: [0, 35, 0, 420], cls: [0, 55, 0, 330], ecole: [0, 5, 0, 200], agri: [0, 15, 0, 300], ccc: [0, 30, 0, 300] };
+  function flyToPlace(id) {
+    if (id === 'bandes') { flyTo(BX0 + BDX * 7, 15, BZ0 + 420, 380, 0.25); return; }
+    if (id === 'tours') { flyTo(8, 40, 8, 260, 0.2); return; }
+    const p = PL[id], f = FLY[id] || [0, 20, 0, 400]; flyTo(p.x, f[1], p.z, f[3], 0.22);
   }
   let onPick = null;
   function pickAgent(px, py) {
@@ -486,7 +559,7 @@ const VILLE = (function () {
     residence: { az: -0.5, el: 0.3, dist: 1100, t: [-600, 20, 1900] }, theatre: { az: 0.3, el: 0.25, dist: 520, t: [PL.theatre.x, 30, PL.theatre.z] },
     cls: { az: -0.2, el: 0.2, dist: 420, t: [PL.cls.x, 50, PL.cls.z] }
   };
-  function preset(k) { const p = PRESETS[k]; cam.az = p.az; cam.el = p.el; cam.dist = p.dist; cam.target.set(...p.t); cam.follow = -1; }
+  function preset(k) { const p = PRESETS[k]; cam.az = p.az; flyTo(p.t[0], p.t[1], p.t[2], p.dist, p.el); }
 
   // ---------------- simulation loop
   let started = false, dayKey = '';
@@ -587,9 +660,7 @@ const VILLE = (function () {
       pos.needsUpdate = true; col.needsUpdate = true; agentPts.visible = SHOW.habitants;
       if (cam.follow >= 0) { const a = agents[cam.follow]; cam.target.lerp(new THREE.Vector3(a.pos[0], a.pos[1], a.pos[2]), 0.15); M.sel.visible = true; M.sel.position.set(a.pos[0], a.pos[1] + 1.2, a.pos[2]); M.sel.scale.setScalar(Math.max(2, cam.dist / 120)); } else M.sel.visible = false;
     }
-    const ce = Math.cos(cam.el);
-    camera.position.set(cam.target.x + Math.sin(cam.az) * ce * cam.dist, cam.target.y + Math.sin(cam.el) * cam.dist, cam.target.z + Math.cos(cam.az) * ce * cam.dist);
-    camera.lookAt(cam.target);
+    stepFly(1 / 60); stepKeys(1 / 60); applyCam();
     renderer.render(scene, camera);
   }
   const dtRot = (ag, j) => (0.004 + 0.07 * ag * ag) * (j % 2 ? 1 : -1) * (1 + 0.3 * Math.sin(clock * 0.7 + j));
@@ -598,6 +669,6 @@ const VILLE = (function () {
   return {
     init, start, frame, preset, project, cam, B, PL, TYPES, ACT, ZONES, TOPO, labels, SHOW, bands, counts, zoneOf, WANT,
     get agents() { return agents; }, get simT() { return simT; }, set simT(v) { simT = v; dayKey = ''; }, get speed() { return speed; }, set speed(v) { speed = v; },
-    get voteRate() { return voteRate; }, setOnPick: f => onPick = f, follow: i => { cam.follow = i; if (i >= 0) cam.dist = Math.min(cam.dist, 260); }
+    get voteRate() { return voteRate; }, setOnPick: f => onPick = f, nav, flyToPlace, follow: i => { cam.follow = i; if (i >= 0) cam.dist = Math.min(cam.dist, 260); }
   };
 })();
