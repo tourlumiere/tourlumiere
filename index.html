@@ -157,6 +157,7 @@ body.panel-closed #langsw{right:46px}
 .bl.cnit{font-size:11px;color:var(--paper);padding:3px 6px;border-left:1px solid var(--ochre);background:rgba(13,12,10,.55);text-shadow:none}
 .bl.cnit .more{pointer-events:auto;background:none;border:1px solid var(--line);color:var(--ochre);font:inherit;font-size:9.5px;padding:0 5px;margin-left:4px;cursor:pointer}.bl.cnit .more:hover{border-color:var(--ochre)}.bl.cnit span{display:none;white-space:normal;width:260px;font-family:var(--serif);font-size:12.5px;line-height:1.3;color:#ddd2bb;margin-top:2px}.bl.cnit.full span{display:block}
 #bl-toggle.on,#snd-toggle.on{border-color:var(--ochre)}
+a.back{color:var(--ochre);text-decoration:none;border:1px solid var(--line);padding:3px 8px;font-size:11px;background:rgba(20,18,15,.7)}
 </style>
 </head>
 <body>
@@ -175,7 +176,7 @@ body.panel-closed #langsw{right:46px}
   <div class="row"><span id="hud-state"></span></div>
 </div>
 <div id="legend"><span><i style="background:#3a6bff"></i><span lang="fr">bleu</span><span lang="en">blue</span></span><span><i style="background:#ff1f1a"></i><span lang="fr">rouge</span><span lang="en">red</span></span><span><i style="background:#ffdb2e"></i><span lang="fr">jaune</span><span lang="en">yellow</span></span><span><i style="background:#ff8014"></i>orange</span><span><i style="background:#9e38ff"></i>violet</span><span><i style="background:#fff7ea"></i><span lang="fr">blanc</span><span lang="en">white</span></span><span lang="fr">· cliquer une lumière : à quoi répond-elle · glisser : tourner · molette : distance · maj+glisser : hauteur</span><span lang="en">· click a light: what it answers to · drag: rotate · wheel: distance · shift+drag: height</span></div>
-<div id="views"><button data-v="paris"><span lang="fr">depuis Paris</span><span lang="en">from Paris</span></button><button data-v="pied"><span lang="fr">au pied</span><span lang="en">at the foot</span></button><button data-v="plateforme"><span lang="fr">plate-forme 272 m</span><span lang="en">platform 272 m</span></button><button data-v="lointain"><span lang="fr">de loin</span><span lang="en">from afar</span></button><button data-v="facade"><span lang="fr">façade 2</span><span lang="en">façade 2</span></button><button data-v="plan"><span lang="fr">plan</span><span lang="en">plan</span></button><button id="autorot"><span lang="fr">rotation auto</span><span lang="en">auto-rotate</span></button><button id="snd-toggle" title="sonorisation selon la méthode de Liège (1961) — hors du texte de 1973" data-title-en="sound after the Liège method (1961), not in the 1973 text"><span lang="fr">son</span><span lang="en">sound</span></button><button id="bl-toggle"><span lang="fr">noms des bâtiments</span><span lang="en">building names</span></button></div>
+<div id="views"><button data-v="paris"><span lang="fr">depuis Paris</span><span lang="en">from Paris</span></button><button data-v="pied"><span lang="fr">au pied</span><span lang="en">at the foot</span></button><button data-v="plateforme"><span lang="fr">plate-forme 272 m</span><span lang="en">platform 272 m</span></button><button data-v="lointain"><span lang="fr">de loin</span><span lang="en">from afar</span></button><button data-v="facade"><span lang="fr">façade 2</span><span lang="en">façade 2</span></button><button data-v="plan"><span lang="fr">plan</span><span lang="en">plan</span></button><button id="autorot"><span lang="fr">rotation auto</span><span lang="en">auto-rotate</span></button><a class="back" href="ville/"><span lang="fr">la Ville cybernétique →</span><span lang="en">the Cybernetic City →</span></a><button id="snd-toggle" title="sonorisation selon la méthode de Liège (1961) — hors du texte de 1973" data-title-en="sound after the Liège method (1961), not in the 1973 text"><span lang="fr">son</span><span lang="en">sound</span></button><button id="bl-toggle"><span lang="fr">noms des bâtiments</span><span lang="en">building names</span></button></div>
 
 <div id="langsw"><button data-ui="fr">FR</button><button data-ui="en">EN</button></div>
 <button id="panel-toggle" title="panneau" data-title-en="panel">☰</button>
@@ -409,15 +410,15 @@ body.panel-closed #langsw{right:46px}
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-<script src="js/i18n.js?v=1795027684"></script>
-<script src="js/defense74.js?v=1795027684"></script>
-<script src="js/tower.js?v=1795027684"></script>
-<script src="js/data.js?v=1795027684"></script>
-<script src="js/program.js?v=1795027684"></script>
-<script src="js/render.js?v=1795027684"></script>
-<script src="js/map3d.js?v=1795027684"></script>
-<script src="js/sim1973.js?v=1795027684"></script>
-<script src="js/sound.js?v=1795027684"></script>
-<script src="js/ui.js?v=1795027684"></script>
+<script src="js/i18n.js?v=1795104654"></script>
+<script src="js/defense74.js?v=1795104654"></script>
+<script src="js/tower.js?v=1795104654"></script>
+<script src="js/data.js?v=1795104654"></script>
+<script src="js/program.js?v=1795104654"></script>
+<script src="js/render.js?v=1795104654"></script>
+<script src="js/map3d.js?v=1795104654"></script>
+<script src="js/sim1973.js?v=1795104654"></script>
+<script src="js/sound.js?v=1795104654"></script>
+<script src="js/ui.js?v=1795104654"></script>
 </body>
 </html>

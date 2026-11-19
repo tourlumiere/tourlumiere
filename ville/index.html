@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>La Ville cybernétique</title>
+<style>
+:root{--ink:#0d0c0a;--ink2:#171512;--line:#2e2a24;--paper:#efe6d2;--dim:#8c8577;--ochre:#e2a03f;--red:#d4553f;--blue:#5b7cff;--mono:'IBM Plex Mono',ui-monospace,monospace;--serif:'EB Garamond',Garamond,serif}
+[hidden]{display:none!important}*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--ink);color:var(--paper);font-family:var(--mono);font-size:12px;overflow:hidden}
+#view{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab}
+#view:active{cursor:grabbing}
+#view-error{position:fixed;top:50%;left:30%;color:var(--red)}
+#hud{position:fixed;top:14px;left:16px;right:420px;pointer-events:none;display:flex;flex-direction:column;gap:4px;text-shadow:0 0 8px rgba(0,0,0,.85),0 1px 2px rgba(0,0,0,.9)}
+#legend,#views{text-shadow:0 0 6px rgba(0,0,0,.9)}
+body.panel-closed #hud{right:16px}
+#hud h1{font-family:var(--serif);font-weight:400;font-size:28px;letter-spacing:.06em;margin:0;line-height:1;text-transform:uppercase}
+#hud .sub{font-family:var(--serif);font-style:italic;font-size:15px;color:#cbbf9f}
+#hud .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px}
+#clock{color:#cbbf9f}
+#mode{padding:2px 7px;border:1px solid currentColor;font-size:10px;letter-spacing:.12em}
+.mode-live{color:#8fd18b}.mode-sim{color:var(--ochre)}
+.chip{padding:2px 8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;border-radius:2px}
+.reg-bleu{background:#2a3f9e;color:#fff}.reg-normal{background:#5a5348;color:#fff}.reg-rouge{background:#b3261e;color:#fff}
+#hud .k{color:var(--dim)}#hud b{font-weight:500;color:var(--paper)}
+#hud-state{color:#d9c7a0;font-style:italic;font-family:var(--serif);font-size:15px}
+#views{position:fixed;left:16px;bottom:14px;display:flex;gap:4px;flex-wrap:wrap;max-width:max(300px,calc(100% - 740px));flex-direction:row;align-content:flex-end}body.panel-closed #views{max-width:max(300px,calc(100% - 336px))}
+#views button,#autorot,.btn{background:rgba(20,18,15,.75);color:var(--paper);border:1px solid var(--line);font:inherit;font-size:11px;padding:4px 8px;cursor:pointer}
+#views button:hover,.btn:hover,#autorot:hover{border-color:var(--ochre)}
+#legend{position:fixed;left:16px;bottom:calc(var(--vh,30px) + 22px);max-width:calc(100% - 760px);font-size:10px;color:var(--dim);display:flex;gap:10px;flex-wrap:wrap}
+#legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+#panel{position:fixed;top:0;right:0;bottom:0;width:404px;background:rgba(13,12,10,.92);border-left:1px solid var(--line);display:flex;flex-direction:column;backdrop-filter:blur(6px)}
+body.panel-closed #panel{transform:translateX(100%)}
+#panel-toggle{position:fixed;top:12px;right:412px;z-index:5;background:rgba(20,18,15,.8);border:1px solid var(--line);color:var(--paper);font:inherit;padding:3px 7px;cursor:pointer}
+body.panel-closed #panel-toggle{right:12px}
+#tabs{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+#tabs button{flex:1 1 auto;min-width:64px;background:none;border:0;color:var(--dim);font:inherit;font-size:11px;padding:9px 6px;cursor:pointer;border-bottom:2px solid transparent}
+#tabs button.on{color:var(--paper);border-bottom-color:var(--ochre)}
+.tab{overflow:auto;padding:12px 14px 30px;flex:1}
+.tab h2{font-family:var(--serif);font-weight:400;font-size:19px;margin:6px 0 2px}
+.tab h3{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ochre);margin:16px 0 6px;font-weight:500}
+.tab p,.notes{font-family:var(--serif);font-size:14.5px;line-height:1.42;color:#e6dcc6}
+.dim{color:var(--dim)}
+.srow{display:grid;grid-template-columns:1fr 88px;grid-template-areas:"n v" "b s" "src src";gap:2px 8px;padding:7px 0;border-bottom:1px solid #221f1a;position:relative}
+.sname{grid-area:n;font-size:11.5px;padding-right:140px}.sname small{color:var(--dim);margin-left:6px;font-size:10px}.sname .j{color:var(--dim);margin-right:3px}
+.sval{grid-area:v;text-align:right;font-size:10px;color:#cbbf9f;grid-column:1/3;grid-row:2;text-align:left;padding-right:130px;min-height:13px}
+.sbar{position:absolute;right:0;top:9px;width:60px;height:5px;background:#2a2620}.sbar i{display:block;height:100%;background:var(--ochre)}
+.badge{position:absolute;right:66px;top:5px;font-size:9px;letter-spacing:.08em;padding:1px 4px;border:1px solid}
+.st-DIRECT{color:#8fd18b}.st-DIFFERE{color:#d7c46c}.st-DERIVE{color:#79b8d9}.st-SIMULE{color:var(--ochre)}.st-CLE{color:var(--red)}.st-ATTENTE{color:var(--dim)}
+.spark{position:absolute;right:0;top:20px;width:120px;height:22px}
+.ssrc{grid-area:src;font-size:9.5px;color:var(--dim)}.ssrc a{color:var(--dim)}
+.legend-st{font-size:10px;color:var(--dim);line-height:1.6}.legend-st span{margin-right:8px}
+#live-count{color:#8fd18b}
+.regbox{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:11.5px}
+#reg-name{padding:1px 8px}
+#bits{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:6px 0}
+.bit{font-size:9.5px;color:var(--dim);display:flex;gap:4px;align-items:center}.bit i{width:10px;height:10px;border:1px solid #6a6253}.bit.on i{background:var(--paper)}.bit.on{color:var(--paper)}
+canvas.fig{width:100%;background:#12110e;border:1px solid var(--line)}
+#groups{width:100%;image-rendering:pixelated;border:1px solid var(--line);cursor:crosshair}
+#types{font-size:10.5px;display:grid;gap:2px;margin-top:6px}#types i{display:inline-block;width:8px;height:8px;margin-right:6px}#types b{color:var(--paper);font-weight:500}
+#insp{font-size:11px;background:#12110e;border:1px solid var(--line);padding:8px;margin-top:6px}
+#insp table{width:100%;border-collapse:collapse;margin:6px 0;font-size:10.5px}#insp td,#insp th{text-align:left;padding:1px 4px;color:#cbbf9f;font-weight:400}#insp th{color:var(--dim)}
+.ieq{margin-top:3px}.pos{color:#8fd18b}.neg{color:var(--red)}.ih{color:var(--paper)}
+.formula{font-family:var(--serif);font-size:16px;text-align:center;margin:6px 0;color:#efe6d2}
+#abacus{width:100%;background:#1a1612;border:1px solid var(--line)}
+#indiff-log{font-size:10.5px;line-height:1.45;margin-top:6px}#indiff-log time{color:var(--dim);margin-right:6px}
+#teletype{background:#ece4cf;color:#1c1a16;font-family:var(--mono);font-size:11px;line-height:1.5;padding:12px 14px;height:calc(100vh - 150px);overflow:auto;white-space:pre-wrap;box-shadow:inset 0 0 40px rgba(0,0,0,.18);background-image:repeating-linear-gradient(transparent 0 32px,rgba(120,150,120,.13) 32px 64px)}
+#schema svg{width:100%}
+.sch text{fill:#d9cfba;font-family:var(--mono);font-size:9px}.sch .lbl{fill:var(--dim)}
+.sch .d{stroke:#cbbf9f;stroke-dasharray:4 3;fill:none;animation:flow 1.2s linear infinite}.sch .s{stroke:#cbbf9f;fill:none}
+@keyframes flow{to{stroke-dashoffset:-14}}
+.sch circle.p{fill:#12110e;stroke:#cbbf9f}.sch circle.p.fire{fill:var(--red);stroke:#fff}
+.sch-tower{fill:#5a5348}.sch-tower.reg-bleu{fill:#2a3f9e}.sch-tower.reg-rouge{fill:#b3261e}
+.set label{display:block;margin:6px 0 2px;color:var(--dim)}.set input[type=text],.set input[type=password],.set input[type=number],.set select{width:100%;background:#12110e;border:1px solid var(--line);color:var(--paper);font:inherit;padding:5px}
+.set .rowi{display:flex;gap:10px;align-items:center;margin:5px 0}
+#overlay{position:fixed;inset:0;background:radial-gradient(ellipse at 30% 40%,rgba(30,24,16,.55),rgba(8,7,6,.94));display:flex;align-items:center;justify-content:center;z-index:20}
+#overlay .card{max-width:620px;padding:34px 38px;border:1px solid var(--line);background:rgba(13,12,10,.9)}
+#overlay h2{font-family:var(--serif);font-weight:400;font-size:34px;margin:0 0 4px;letter-spacing:.04em}
+#overlay p{font-family:var(--serif);font-size:16px;line-height:1.45;color:#ddd2bb}
+#overlay .opts{display:flex;gap:18px;margin:14px 0 18px;font-size:11.5px}
+#start{background:var(--paper);color:var(--ink);border:0;font:inherit;font-size:13px;letter-spacing:.14em;padding:11px 22px;cursor:pointer;text-transform:uppercase}
+#overlay.going #start{opacity:.5}
+#simnote{position:fixed;left:16px;top:250px;max-width:420px;background:rgba(40,28,10,.92);border:1px solid var(--ochre);padding:10px 12px;font-family:var(--serif);font-size:14px;line-height:1.35;z-index:4}
+#simnote button{float:right;background:none;border:0;color:var(--paper);cursor:pointer}
+.notes h3{font-family:var(--mono)}
+.notes p{margin:0 0 10px}
+.refs{font-family:var(--serif);font-size:13px;color:#cbbf9f;line-height:1.4}
+
+#viewB{position:fixed;top:0;bottom:0;display:none;cursor:grab;border-left:1px solid var(--line)}
+body.compare #view{width:calc((100% - 404px) / 2)}
+body.compare #viewB{display:block;left:calc((100% - 404px) / 2);width:calc((100% - 404px) / 2);height:100%}
+body.compare.panel-closed #view{width:50%} body.compare.panel-closed #viewB{left:50%;width:50%}
+.cmplabel{position:fixed;bottom:80px;display:none;font-size:11px;background:rgba(13,12,10,.8);border:1px solid var(--line);padding:4px 8px;max-width:calc((100% - 440px) / 2)}
+body.compare .cmplabel{display:block}#labelA{left:16px}#labelB{left:calc((100% - 404px) / 2 + 16px)}
+body.compare.panel-closed #labelB{left:calc(50% + 16px)}
+.st-ARCHIVE{color:#c9a7ff}.mode-archive{color:#c9a7ff}
+#overlay-facade{position:fixed;pointer-events:none;mix-blend-mode:screen;opacity:.7;z-index:2}
+#docs{display:grid;grid-template-columns:1fr 1fr;gap:10px}#docs figure{margin:0;cursor:zoom-in}#docs img{width:100%;display:block;background:#222;filter:grayscale(1) contrast(1.05)}
+#docs figcaption{font-family:var(--serif);font-size:12.5px;line-height:1.25;margin-top:3px;color:#d9cfba}#docs figure.missing{display:none}
+#lightbox{position:fixed;inset:0;background:rgba(6,5,4,.94);z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:zoom-out;padding:24px}
+#lightbox img{max-width:92vw;max-height:84vh;object-fit:contain;background:#fff}#lb-cap{font-family:var(--serif);font-size:15px;margin-top:10px;color:#ddd2bb}
+table.ana{width:100%;border-collapse:collapse;font-size:10.5px;margin:4px 0 8px}table.ana td,table.ana th{padding:2px 4px;text-align:left;color:#cbbf9f;font-weight:400;border-bottom:1px solid #221f1a}table.ana th{color:var(--dim)}
+table.ana i{display:block;height:6px}
+.crit{display:grid;grid-template-columns:1fr 1fr;gap:2px 10px}.crit label{margin:4px 0 0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#cmp-presets button{margin:2px}
+#minimap{position:fixed;right:420px;bottom:16px;width:280px;z-index:3;contain:paint;isolation:isolate;overflow:hidden;border:1px solid var(--line);background:#0d0c0a}
+body.panel-closed #minimap{right:16px}
+#mm{width:100%;height:210px;background:#1a1916}#minimap.min #mm,#minimap.min #mm-cap{display:none}
+.mmbar{display:flex;flex-wrap:wrap;gap:2px;padding:3px;align-items:center}.mmbar button{background:none;border:1px solid var(--line);color:var(--dim);font:inherit;font-size:10px;padding:2px 6px;cursor:pointer}.mmbar button.on{color:var(--paper);border-color:var(--ochre)}.mmbar button:focus{outline:none}.mmbar button:focus-visible{outline:1px dotted var(--ochre)}
+.mmbar span{flex:1 1 100%;font-size:10px;color:var(--dim);padding-left:4px}
+#mm-cap{font-size:10px;color:#cbbf9f;padding:2px 6px 4px}
+#minimap .leaflet-control-attribution{font-size:8px;background:rgba(0,0,0,.5);color:#aaa}#minimap .leaflet-control-attribution a{color:#ccc}
+#pick{position:fixed;left:16px;top:250px;width:370px;max-height:calc(100vh - 330px);overflow:auto;z-index:6;background:rgba(13,12,10,.93);border:1px solid var(--ochre);font-size:11px;line-height:1.45}
+.pk-bar{display:flex;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#0d0c0a}.pk-bar span{flex:1;font-family:var(--serif);font-size:16px}
+.pk-bar button{background:none;border:0;color:var(--paper);font-size:16px;cursor:pointer}
+#pick-body{padding:8px 10px 10px}#pick-body h4{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ochre);margin:10px 0 3px;font-weight:500}
+.pk-h{font-family:var(--serif);font-size:15px;color:var(--paper)}.pk-s{color:var(--dim)}.pk-state{margin-top:5px;color:var(--dim)}.pk-state.on{color:#8fd18b}
+.pk-why{color:#d9c7a0}.pk-t{width:100%;border-collapse:collapse;margin:3px 0}.pk-t td,.pk-t th{padding:1px 3px;text-align:left;font-weight:400;color:#cbbf9f;border-bottom:1px solid #221f1a}.pk-t th{color:var(--dim)}.pk-t .badge{position:static;font-size:8px;padding:0 3px}
+.lp{position:relative;background:repeating-linear-gradient(#f3f5ec 0 26px,#d9e9d2 26px 52px);padding:0 22px;overflow:auto;max-height:calc(100vh - 260px);box-shadow:inset 0 0 30px rgba(0,0,0,.12)}
+.lp::before,.lp::after{content:'';position:absolute;top:0;bottom:0;width:22px;background:radial-gradient(circle at 11px 13px,#0d0c0a 4px,transparent 5px) repeat-y 0 0/22px 26px;pointer-events:none}.lp::before{left:0}.lp::after{right:0}
+.lp pre{margin:0;font-family:var(--mono);font-size:7.6px;line-height:13px;color:#23262a;white-space:pre;min-width:max-content;padding:0 6px;text-shadow:0 0 .4px #23262a}
+#lpmodal{position:fixed;inset:16px;z-index:14;background:#0d0c0a;border:1px solid var(--line);display:flex;flex-direction:column}#lpmodal .lp{flex:1;max-height:none}
+.lp-big pre{font-size:12.5px;line-height:13px}
+#sumbox{border-top:1px solid var(--ochre);background:#100f0c;max-height:42vh;overflow:auto;flex:0 0 auto}
+#sumbox summary{cursor:pointer;display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ochre);position:sticky;top:0;background:#100f0c;list-style:none}
+#sumbox summary::-webkit-details-marker{display:none}#sumbox summary::before{content:'▸';transition:transform .2s}#sumbox[open] summary::before{transform:rotate(90deg)}
+#sumbox summary>span:first-of-type{flex:1}.sum-l button{background:none;border:1px solid var(--line);color:var(--dim);font:inherit;font-size:9px;padding:1px 5px;cursor:pointer;margin-left:2px}.sum-l button.on{color:var(--paper);border-color:var(--ochre)}
+#sum-time{padding:0 14px;font-size:10px}#sum-body{padding:4px 14px 12px;font-family:var(--serif);font-size:14px;line-height:1.38;color:#e6dcc6}#sum-body p{margin:0 0 7px}#sum-body b{font-weight:600;color:var(--paper)}
+#m3d{position:fixed;left:16px;top:16px;right:420px;bottom:16px;z-index:12;background:#0d0c0a;border:1px solid var(--line);display:flex;flex-direction:column}
+body.panel-closed #m3d{right:16px}
+.m3dbar{display:flex;gap:8px;align-items:center;padding:6px 8px;font-size:11px}.m3dbar span{flex:1;font-family:var(--serif);font-size:16px}
+.m3dbar button{background:none;border:1px solid var(--line);color:var(--paper);font:inherit;font-size:11px;padding:3px 8px;cursor:pointer}.m3dbar button.on{border-color:var(--ochre);color:var(--ochre)}
+#m3d-slot{flex:1;position:relative;display:flex}#m3d-map{flex:1;position:relative;min-height:0}
+#mm3d-slot{display:none;height:210px}#minimap.is3d #mm3d-slot{display:flex}#minimap.is3d #mm{display:none}#mm3d-slot #m3d-map{height:210px}
+#minimap.min #mm3d-slot{display:none!important}
+#mm3d-slot .maplibregl-ctrl-top-right{display:none}#mm3d-slot .maplibregl-ctrl-attrib{font-size:8px;background:rgba(0,0,0,.45)!important;color:#bbb;padding:0 3px;min-height:0}#mm3d-slot .maplibregl-ctrl-attrib a{color:#ccc}#mm3d-slot .maplibregl-ctrl-attrib-button{display:none}
+#m3d-info{font-size:11px;padding:6px 8px;color:#cbbf9f}#m3d-info b{color:var(--paper);font-weight:500}
+#m3d-tip{position:absolute;pointer-events:none;background:rgba(13,12,10,.9);border:1px solid var(--line);padding:3px 6px;font-size:11px;z-index:13}
+#m3d-map{}#m3d .maplibregl-ctrl-attrib{font-size:9px}
+@media (max-width:900px){#m3d{right:8px;left:8px}}
+@media (max-width:900px){#minimap{right:12px;bottom:auto;top:12px;width:200px}#mm{height:140px}}
+@media (max-width:900px){#panel{width:100%;top:45%}#panel-toggle{right:12px;top:auto;bottom:56%}#hud{right:16px}#hud h1{font-size:20px}}
+html[lang=en] [lang=fr],html[lang=fr] [lang=en]{display:none!important}
+#langsw{position:fixed;top:12px;right:446px;z-index:6;display:flex;gap:0;border:1px solid var(--line);background:rgba(20,18,15,.8)}
+body.panel-closed #langsw{right:46px}
+#langsw button{background:none;border:0;color:var(--dim);font:inherit;font-size:11px;letter-spacing:.08em;padding:3px 8px;cursor:pointer}#langsw button.on{color:var(--ink);background:var(--paper)}
+#readings{display:grid;grid-template-columns:repeat(5,minmax(80px,auto));gap:5px 16px;margin-top:9px;justify-content:start;justify-self:start;align-self:flex-start;background:rgba(13,12,10,.55);border:1px solid rgba(46,42,36,.8);padding:6px 10px;text-shadow:none}
+.rd{display:flex;flex-direction:column;line-height:1.15;pointer-events:auto;cursor:default}.rd .rk{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:#bfb49a;display:flex;align-items:center;gap:5px}
+.rd .rk i{width:6px;height:6px;border-radius:50%;background:#8fd18b;display:inline-block}.rd.sim .rk i{background:var(--ochre)}.rd .rk em{font-style:normal}
+.rd b{font-size:14px;font-weight:500;color:var(--paper)}
+#blabels{position:fixed;top:0;left:0;bottom:0;right:404px;pointer-events:none;z-index:1;overflow:hidden}body.panel-closed #blabels{right:0}
+.bl{position:absolute;left:0;top:0;font-size:9.5px;color:#d9cfba;white-space:nowrap;text-shadow:0 0 4px #000,0 0 2px #000;letter-spacing:.02em}.bl i{font-style:normal;color:var(--dim)}
+.bl.cnit{font-size:11px;color:var(--paper);padding:3px 6px;border-left:1px solid var(--ochre);background:rgba(13,12,10,.55);text-shadow:none}
+.bl.cnit .more{pointer-events:auto;background:none;border:1px solid var(--line);color:var(--ochre);font:inherit;font-size:9.5px;padding:0 5px;margin-left:4px;cursor:pointer}.bl.cnit .more:hover{border-color:var(--ochre)}.bl.cnit span{display:none;white-space:normal;width:260px;font-family:var(--serif);font-size:12.5px;line-height:1.3;color:#ddd2bb;margin-top:2px}.bl.cnit.full span{display:block}
+#bl-toggle.on,#snd-toggle.on{border-color:var(--ochre)}
+a.back{color:var(--ochre);text-decoration:none;border:1px solid var(--line);padding:3px 8px;font-size:11px;background:rgba(20,18,15,.7)}
+</style>
+<style>
+#city{position:fixed;inset:0;width:100%;height:100%;display:block}
+.rd.city .rk i{background:#d8b9e8}
+.bl.city{pointer-events:auto;cursor:pointer;font-size:10.5px;padding:1px 5px;background:rgba(13,12,10,.45);border-left:1px solid var(--ochre)}
+.bl.city:hover{background:rgba(13,12,10,.8);color:#fff}
+.bbar{display:inline-block;position:relative;width:46px;height:7px;background:#25221d;vertical-align:middle}.bbar i{position:absolute;top:0;bottom:0}
+.blog div{font-size:12px;border-bottom:1px solid #2a2620;padding:3px 0}.blog time{color:var(--dim);margin-right:6px}
+.acts span{display:inline-block;margin:0 10px 4px 0;font-size:12.5px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.plan span{display:inline-block;margin:0 8px 3px 0;font-size:12px;color:var(--dim)}.plan span.on{color:var(--paper);border-bottom:1px solid var(--ochre)}.plan span.past{opacity:.55}
+#pick{top:300px}
+#hud{z-index:2}
+#views select{background:#14120f;color:var(--paper);border:1px solid var(--line);font:inherit;font-size:11px}
+a.back{color:var(--ochre);text-decoration:none;border:1px solid var(--line);padding:3px 8px;font-size:11px}
+</style>
+</head>
+<body>
+<canvas id="city"></canvas>
+<div id="blabels"></div>
+<div id="view-error" hidden></div>
+
+<div id="hud">
+  <h1>La Ville cybernétique</h1>
+  <div class="sub">Nicolas Schöffer, 1969 · <span lang="fr">une ville imaginée, réglée sur les données de Paris</span><span lang="en">an imagined city, regulated on Paris data</span></div>
+  <div id="readings"></div>
+  <div class="row"><span id="mode">—</span><span id="hud-state" class="k"></span></div>
+</div>
+<div id="legend"><span><i style="background:rgb(242,184,89)"></i><span lang="fr">travailleur</span><span lang="en">worker</span></span><span><i style="background:rgb(242,115,140)"></i><span lang="fr">personnel des loisirs</span><span lang="en">leisure staff</span></span><span><i style="background:rgb(140,217,242)"></i><span lang="fr">étudiant</span><span lang="en">student</span></span><span><i style="background:rgb(153,242,128)"></i><span lang="fr">enfant</span><span lang="en">child</span></span><span><i style="background:rgb(204,191,242)"></i><span lang="fr">retraité</span><span lang="en">retired</span></span><span lang="fr">· cliquer un habitant pour le suivre · cliquer un nom de bâtiment · glisser : tourner · maj+glisser : déplacer · molette : distance</span><span lang="en">· click an inhabitant to follow them · click a building name · drag: rotate · shift+drag: move · wheel: distance</span></div>
+<div id="views"><a class="back" href="../"><span lang="fr">← la Tour Lumière</span><span lang="en">← the Light Tower</span></a><button data-v="ensemble"><span lang="fr">vue d’ensemble</span><span lang="en">overview</span></button><button data-v="travail"><span lang="fr">ville de travail</span><span lang="en">work city</span></button><button data-v="residence"><span lang="fr">ville résidentielle</span><span lang="en">residential city</span></button><button data-v="theatre"><span lang="fr">théâtre</span><span lang="en">theatre</span></button><button data-v="cls"><span lang="fr">centre de loisirs</span><span lang="en">leisure centre</span></button><button id="follow"><span lang="fr">suivre un habitant</span><span lang="en">follow an inhabitant</span></button><button id="snd-toggle"><span lang="fr">son</span><span lang="en">sound</span></button><button id="bl-toggle"><span lang="fr">noms</span><span lang="en">names</span></button><select id="speed"><option value="1" data-en="real time">temps réel</option><option value="10">× 10</option><option value="30" selected>× 30</option><option value="120">× 120</option><option value="600">× 600</option></select></div>
+
+<div id="langsw"><button data-ui="fr">FR</button><button data-ui="en">EN</button></div>
+<button id="panel-toggle">☰</button>
+<aside id="panel">
+  <nav id="tabs"><button data-tab="cerveau" class="on"><span lang="fr">Cerveau</span><span lang="en">Brain</span></button><button data-tab="habitants"><span lang="fr">Habitants</span><span lang="en">Inhabitants</span></button><button data-tab="topologies"><span lang="fr">Topologies</span><span lang="en">Topologies</span></button><button data-tab="documents">Documents</button><button data-tab="notes">Notes</button></nav>
+
+  <section class="tab" id="tab-cerveau">
+    <h3><span lang="fr">Commande cybernétique centrale</span><span lang="en">Central cybernetic command</span></h3>
+    <p class="dim" style="font-size:12.5px"><span lang="fr">Les habitants tournent un bouton « jusqu’au degré souhaité » et appuient sur celui du phénomène choisi ; le cerveau central quantifie ces informations et les transforme en « ordres souples » (p. 151). Il reçoit ici, de plus, les données de Paris.</span><span lang="en">The inhabitants turn a dial “jusqu’au degré souhaité” and press the button of the chosen phenomenon; the central brain quantifies this information and turns it into “ordres souples” (p. 151). Here it also receives the Paris data.</span></p>
+    <div id="brain"><p class="dim">—</p></div>
+  </section>
+  <section class="tab" id="tab-habitants" hidden>
+    <div id="pop-table"></div>
+    <canvas id="daychart" class="fig" width="760" height="190" style="margin-top:8px"></canvas>
+  </section>
+  <section class="tab" id="tab-topologies" hidden>
+    <h3><span lang="fr">Les cinq topologies (p. 151–163)</span><span lang="en">The five topologies (pp. 151–163)</span></h3>
+    <div lang="fr" class="topo">
+      <p><b>1. Temps, topologie des rythmes.</b> Des zones à densité d’événements diversifiée : grande densité autour des noyaux de travail le jour, rythmes « détendus et distendus » dans les zones résidentielles. Ici, le rythme horaire de chaque zone fonde ses consignes, et les habitants suivent leurs trois tiers.</p>
+      <p><b>2. Lumière.</b> Éclairage nocturne de la circulation, constant ou pulsé, et « jeux lumineux de conditionnement collectif » commandés par la centrale ; de jour, intervention automatique de la lumière artificielle quand la luminosité baisse anormalement. Ici les lampadaires pulsent lentement (décontractant) ou vite (stimulant), et la nébulosité réelle de Paris allume la lumière de jour.</p>
+      <p><b>3. Son.</b> Neutraliser les bruits humains et techniques, prévoir des zones de silence, et des zones où la centrale diffuse « des fonds sonores stimulants ou décontractants ». Le bouton « son » fait entendre le fond de la zone que regarde la caméra ; la ville résidentielle se tait la nuit.</p>
+      <p><b>4. Climats et odeurs.</b> Souffleries, murs de chaleur, cloisons d’eau ou d’air soufflé autour des habitations quand le climat est dur ; bouches de diffusion d’odeurs stimulantes ou décontractantes. Les cloisons apparaissent quand le temps de Paris s’écarte du confort ; les bouffées colorées sont les odeurs.</p>
+      <p><b>5. Espace.</b> Les tracés de la circulation horizontale et verticale, que les structures spatiodynamiques laissent ouverts au regard : routes directes, ascenseurs des bandes, hélibus entre les toits et les sommets des centres.</p>
+    </div>
+    <div lang="en" class="topo">
+      <p><b>1. Time, topology of rhythms.</b> Zones of varied density of events: high density round the work nuclei by day, “détendus et distendus” rhythms in the residential zones. Here the hourly rhythm of each zone underlies its setpoints, and the inhabitants keep to their three thirds.</p>
+      <p><b>2. Light.</b> Night lighting of circulation, constant or pulsed, and “jeux lumineux de conditionnement collectif” commanded by the central; by day, automatic artificial light when daylight falls abnormally low. Here the street lights pulse slowly (relaxing) or fast (stimulating), and the real cloud cover over Paris switches on the daytime light.</p>
+      <p><b>3. Sound.</b> Neutralise human and technical noise, provide zones of silence, and zones where the central diffuses “des fonds sonores stimulants ou décontractants”. The “sound” button plays the background of the zone the camera is looking at; the residential city falls silent at night.</p>
+      <p><b>4. Climates and odours.</b> Blowers, heat walls, water or blown-air partitions round the dwellings when the climate is harsh; outlets diffusing stimulating or relaxing odours. The partitions appear when the Paris weather leaves the comfort band; the coloured puffs are the odours.</p>
+      <p><b>5. Space.</b> The paths of horizontal and vertical circulation, which the spatiodynamic structures leave open to view: direct roads, the lifts of the bands, helibuses between the roofs and the summits of the centres.</p>
+    </div>
+    <div class="rowi"><label><input type="checkbox" data-show="habitants" checked> <span lang="fr">habitants</span><span lang="en">inhabitants</span></label> <label><input type="checkbox" data-show="climat" checked> <span lang="fr">cloisons climatiques et odeurs</span><span lang="en">climate partitions and odours</span></label></div>
+    <h3><span lang="fr">Horloge</span><span lang="en">Clock</span></h3>
+    <div class="rowi"><button class="btn" id="btn-now"><span lang="fr">revenir à l’heure de Paris</span><span lang="en">back to Paris time</span></button></div>
+    <div class="dim" style="font-size:11px"><span lang="fr">L’accélération (sous la vue) porte sur la ville ; les données de Paris restent celles du moment, ou de la prévision pour les heures à venir.</span><span lang="en">Acceleration (under the view) applies to the city; the Paris data remain those of the moment, or the forecast for the hours ahead.</span></div>
+  </section>
+  <section class="tab" id="tab-documents" hidden>
+    <h3><span lang="fr">Planches du livre</span><span lang="en">Plates from the book</span></h3>
+    <div id="docs"></div>
+    <p class="dim" style="font-size:12px;margin-top:10px">Nicolas Schöffer, <i>La Ville cybernétique</i>, Paris, Tchou, 1969 (rééd. Naima, 2018). <span lang="fr">Maquettes : Studio Yves Hervochon. Œuvres de Nicolas Schöffer</span><span lang="en">Models photographed by Studio Yves Hervochon. Works by Nicolas Schöffer</span> © ADAGP, Paris.</p>
+  </section>
+  <section class="tab notes" id="tab-notes" hidden>
+  <div lang="en">
+    <h2>On this simulation</h2>
+    <p>The city of <i>La Ville cybernétique</i> (1969) is a set of programmes before it is a plan. Schöffer divides life into three thirds, of sleep, work and leisure (p. 133), and gives each its form: the work city is vertical, because work means contact, concentration and contraction; the residential city is horizontal, because rest means decontraction and dispersion; leisure is “ni verticale ni horizontale, mais distendue et transitoire entre les deux extrêmes”. Over these he sets a regulation. Control desks with pointing buttons are to be spread through the dwellings and the city, each inhabitant turning a dial to the degree desired and pressing the button of the phenomenon to be increased or diminished, and a central brain is to quantify these orders and act on five “topologies”, of time, light, sound, climates and space (pp. 151–152). The simulation builds that arrangement, populates it, and puts live data from Paris in the place of the environment the brain was to read.</p>
+    <h3>What comes from the book</h3>
+    <p>The forms of the buildings follow the plates photographed by Studio Yves Hervochon: the residential bands on pylons (p. 168), the vertical university centre (p. 172), the administrative centre of two glazed ovoids (p. 203), the research centre of spheres held in an open frame (p. 204), the spatiodynamic theatre (pp. 167, 189), and the centre de loisirs sexuels (pp. 170–171). Their dimensions and rules follow the text: residential bands of two-storey prefabricated cells at 10–30 m, 100 to 500 cells to a band, with lifts, staggered walkways, roof landing areas and individual terraces, the ground beneath left to fields, gardens and forests (pp. 137, 146–148); façades facing east and west in a temperate climate, so that the bands run north to south (p. 178); helicopter platforms on the summits of the vertical centres and helibuses between the cities (pp. 135, 146); a theatre shell between 100 and 250 m across, its public turning round a central cylinder that holds the shopping centre, under a control tower (pp. 186–190); the leisure centre placed far from the work city, near the residential city, in a park (p. 176). The behaviour of the inhabitants follows the same pages: the stimulating centre of each unit in the morning, for the worker and for children going to school; the passage through an integrated relaxation centre on leaving work, “quels que soient son grade ou sa spécialité” (p. 175); meals as an integrated leisure in both cities, served by trained personnel (pp. 173–174); the leisure centre for couples, in the evening. The orders of the brain follow the topologies: pulsed or constant lighting of circulation and the automatic correction of an abnormally dark day “du fait d’un plafond très bas” (pp. 156–157); stimulating or relaxing sound backgrounds, and zones of silence (p. 160); partitions of blown air, heat walls and water curtains round the dwellings, and the diffusion of odours (pp. 161–162); sculpture-towers at the crossroads that act as barometers at certain hours and give information at others, and smaller autonomous sculptures circulating among the passers-by (pp. 181–184).</p>
+    <h3>What is imagined</h3>
+    <p>The book gives no plan of a city, so the layout is mine: a work city of three vertical centres round a crossroads, a residential satellite of sixteen bands some 1.5 km to the south, the theatre between them, the leisure centre in a park to the east, an agricultural centre to the west, a school, and the C.C.C. at the main crossroads. The relaxation and stimulating centres, the restaurants, the school, the agricultural centre and the building of the C.C.C. are described in the text without being drawn, and appear as plain pavilions. The sixteen bands of five hundred cells house 20,000 inhabitants, each dot standing for ten of them, within the 10,000 to 500,000 the text allows for a residential city (p. 147). The inhabitants belong to the categories the text names: workers, the personnel of collective food and leisure, students, children, and retirees, the residential city being a place of retreat “temporaire ou définitif, selon l’âge” (p. 132). Their proportions, their times of rising and leaving, the shifts of the personnel and the weekend, which the text does not mention, are my decisions.</p>
+    <p>The text says that the brain acts on events through quantified orders, without saying how an inhabitant comes to press a button. Each inhabitant therefore carries a tonus between 0 and 1, read as Schöffer’s alternation of contraction and decontraction (pp. 137–138, 145): work, the stimulating centre and stimulating surroundings raise it, sleep, the relaxation centre and relaxing surroundings lower it, and each activity has a tonus it calls for. When the two diverge, an inhabitant at a control post (in the cell, at work, in the theatre) may ask for more or less of light, sound, climate or odour, choosing the phenomenon that bears most on them at that moment. The brain decays these orders with a half-life of ten minutes, adds them to the hourly rhythm of each zone, and returns setpoints that act in turn on the inhabitants’ tonus. The gap between the tonus each inhabitant needs and the tonus they have, averaged over those awake, is shown as a measure of desynchronisation, after Schöffer’s claim that individual and collective rhythms out of step produce “traumatismes” (p. 145). The tonus, its constants and the measure are mine.</p>
+    <h3>Paris as environment</h3>
+    <p>Schöffer’s brain was to read “les changements constants survenus dans leur environnement naturel et artificiel” (p. 184). Here the natural environment is the weather of Paris, from the same sources as the tower: the height of the sun gives day and night; cloud cover by day switches on the artificial light; temperature, wind and humidity outside a band of comfort raise the climate partitions; the next day’s forecast agitates the sculpture-towers at their barometer hours. The artificial environment is the city’s own traffic, noise and information: the Paris road counts set the density of road journeys, the estimated street noise weights the relaxing backgrounds of the residential city, and the rate of news, posts and edits drives the light of the work city and the towers’ information mode. These assignments are mine, and the Brain tab lists each one beside its live value and status.</p>
+    <h3>What is left out</h3>
+    <p>The autonomous leisure cities, seaside, alpine, intellectual, spiritual or artistic, with their seasonal migrations (pp. 177–180); the conditioned shells, underwater or extraterrestrial, and the static leisure centres through which certain workers would obligatorily pass (p. 180); the growth and dismantling of the bands under centres of expansionist statistics (pp. 149–150, 193); the rotating light-breaking rings and mirror propellers of programmed architecture (pp. 191–193); the theatre’s rotating public and programme, and the interior of the leisure centre, of which the simulation shows only arrivals and departures. The Tour Lumière itself belongs to Paris and remains on the other page.</p>
+    <h3>Sources</h3>
+    <div class="refs">Nicolas Schöffer, <i>La Ville cybernétique</i> (Paris: Tchou, 1969; Naima, 2018), pp. 130–194; plates © ADAGP, Paris.<br>Nina Stener Jørgensen, “The Power of the Tower: Nicolas Schöffer’s Tour Lumière Cybernétique for La Défense (1962–1973),” <i>Architectural Histories</i> 12, no. 1 (2024): 1–19.<br>Carlotta Darò, “Nicolas Schöffer and the Cybernetic City,” <i>AA Files</i> 69 (2014): 3–11.<br><br>Data: as on the tower page (Open-Meteo, Ville de Paris, Santé publique France, franceinfo, Bluesky, Wikimedia).</div>
+  </div>
+  <div lang="fr">
+    <h2>À propos de cette simulation</h2>
+    <p>La ville de <i>La Ville cybernétique</i> (1969) est un ensemble de programmes avant d’être un plan. Schöffer partage la vie en trois tiers, de sommeil, de travail et de loisirs (p. 133), et donne à chacun sa forme : la ville de travail est verticale, parce que travailler veut dire contacts, concentration et contraction ; la ville résidentielle est horizontale, parce que le repos veut dire décontraction et dispersion ; les loisirs ne sont « ni verticale[s] ni horizontale[s], mais distendu[s] et transitoire[s] entre les deux extrêmes ». Il pose sur cet ensemble une régulation. Des postes de commandes munis de boutons de pointage seront disséminés dans les habitations et dans la cité, chaque habitant tournant jusqu’au degré souhaité et appuyant sur le bouton du phénomène à augmenter ou à diminuer, et un cerveau central quantifiera ces ordres pour agir sur cinq « topologies », du temps, de la lumière, du son, des climats et de l’espace (p. 151–152). La simulation construit ce dispositif, le peuple, et met les données de Paris, en direct, à la place de l’environnement que le cerveau devait lire.</p>
+    <h3>Ce qui vient du livre</h3>
+    <p>Les formes des bâtiments suivent les planches photographiées par le Studio Yves Hervochon : les bandes résidentielles sur pylônes (p. 168), le centre universitaire vertical (p. 172), le centre administratif fait de deux ovoïdes vitrés (p. 203), le centre de recherche aux sphères tenues dans une ossature ouverte (p. 204), le théâtre spatiodynamique (p. 167, 189) et le centre de loisirs sexuels (p. 170–171). Leurs dimensions et leurs règles suivent le texte : des bandes de cellules préfabriquées à deux étages, à 10–30 m, de 100 à 500 cellules par bande, avec ascenseurs, coursives décalées, aires d’atterrissage en toiture et terrasses individuelles, le sol laissé dessous aux champs, aux jardins et aux forêts (p. 137, 146–148) ; des façades est-ouest en climat tempéré, de sorte que les bandes courent du nord au sud (p. 178) ; des plates-formes pour hélicoptères au sommet des centres verticaux et des hélibus entre les villes (p. 135, 146) ; une coque de théâtre de 100 à 250 m, son public tournant autour d’un cylindre central qui contient le centre commercial, sous une tour de contrôle (p. 186–190) ; le centre de loisirs placé loin de la ville de travail, près de la ville résidentielle, dans un parc (p. 176). Le comportement des habitants suit les mêmes pages : le centre stimulant de chaque unité le matin, pour le travailleur et pour les enfants se rendant à l’école ; le passage par un centre de relaxation intégré en quittant le travail, « quels que soient son grade ou sa spécialité » (p. 175) ; les repas comme loisir intégré dans les deux villes, servis par un personnel formé (p. 173–174) ; le centre de loisirs des couples, le soir. Les ordres du cerveau suivent les topologies : éclairage pulsé ou constant de la circulation et correction automatique d’un jour anormalement sombre « du fait d’un plafond très bas » (p. 156–157) ; fonds sonores stimulants ou décontractants, et zones de silence (p. 160) ; cloisons d’air soufflé, murs de chaleur et cloisons d’eau autour des habitations, et diffusion d’odeurs (p. 161–162) ; sculptures-tours aux carrefours, baromètres à certaines heures et informatrices à d’autres, et sculptures autonomes plus petites circulant parmi les passants (p. 181–184).</p>
+    <h3>Ce qui est imaginé</h3>
+    <p>Le livre ne donne aucun plan de ville ; la disposition est donc la mienne : une ville de travail de trois centres verticaux autour d’un carrefour, un satellite résidentiel de seize bandes à quelque 1,5 km au sud, le théâtre entre les deux, le centre de loisirs dans un parc à l’est, un centre agricole à l’ouest, une école, et la C.C.C. au carrefour principal. Les centres de relaxation et les centres stimulants, les restaurants, l’école, le centre agricole et le bâtiment de la C.C.C. sont décrits sans être dessinés, et figurent comme de simples pavillons. Les seize bandes de cinq cents cellules logent 20 000 habitants, chaque point en représentant dix, dans les limites de 10 000 à 500 000 que le texte prévoit pour une cité résidentielle (p. 147). Les habitants appartiennent aux catégories que le texte nomme : travailleurs, personnel de l’alimentation et des loisirs collectifs, étudiants, enfants, et retraités, la cité résidentielle étant un lieu de retrait « temporaire ou définitif, selon l’âge » (p. 132). Leurs proportions, leurs heures de lever et de départ, les services du personnel et le week-end, dont le texte ne parle pas, sont des décisions de ma part.</p>
+    <p>Le texte dit que le cerveau agit sur les événements par des ordres quantifiés, sans dire comment un habitant en vient à appuyer sur un bouton. Chaque habitant porte donc un tonus compris entre 0 et 1, lu comme l’alternance de contraction et de décontraction de Schöffer (p. 137–138, 145) : le travail, le centre stimulant et une ambiance stimulante l’élèvent, le sommeil, le centre de relaxation et une ambiance décontractante l’abaissent, et chaque activité appelle un tonus. Quand les deux divergent, un habitant placé devant un poste de commande (dans sa cellule, au travail, au théâtre) peut demander plus ou moins de lumière, de son, de climat ou d’odeur, en choisissant le phénomène qui pèse le plus sur lui à ce moment. Le cerveau atténue ces ordres avec une demi-vie de dix minutes, les ajoute au rythme horaire de chaque zone, et rend des consignes qui agissent à leur tour sur le tonus des habitants. L’écart entre le tonus dont chaque habitant a besoin et celui qu’il a, en moyenne sur les habitants éveillés, est affiché comme mesure de désynchronisation, d’après l’idée de Schöffer que des rythmes individuels et collectifs désaccordés produisent des « traumatismes » (p. 145). Le tonus, ses constantes et cette mesure sont de mon fait.</p>
+    <h3>Paris comme environnement</h3>
+    <p>Le cerveau de Schöffer devait lire « les changements constants survenus dans leur environnement naturel et artificiel » (p. 184). L’environnement naturel est ici le temps qu’il fait à Paris, tiré des mêmes sources que la tour : la hauteur du soleil donne le jour et la nuit ; une forte nébulosité de jour allume la lumière artificielle ; une température, un vent ou une humidité hors d’une plage de confort font monter les cloisons climatiques ; la prévision du lendemain agite les sculptures-tours à leurs heures de baromètre. L’environnement artificiel est la circulation, le bruit et l’information de la ville : les comptages routiers de Paris règlent la densité des trajets, le bruit de rue estimé pèse sur les fonds décontractants de la ville résidentielle, et le débit des dépêches, des messages et des modifications commande la lumière de la ville de travail et le mode d’information des tours. Ces affectations sont les miennes, et l’onglet Cerveau les énumère chacune avec sa valeur et son statut en direct.</p>
+    <h3>Ce qui est laissé de côté</h3>
+    <p>Les villes-loisirs autonomes, riveraines, alpines, intellectuelles, spirituelles ou artistiques, avec leurs migrations saisonnières (p. 177–180) ; les coquilles conditionnées, sous-marines ou extra-terrestres, et les centres statiques par lesquels certains travailleurs passeraient obligatoirement (p. 180) ; la croissance et le démontage des bandes sous le contrôle de centres de statistiques expansionnelles (p. 149–150, 193) ; les anneaux brise-lumière et les hélices-miroirs de l’architecture programmée (p. 191–193) ; la rotation du public et le programme du théâtre, et l’intérieur du centre de loisirs, dont la simulation ne montre que les arrivées et les départs. La Tour Lumière elle-même appartient à Paris et reste sur l’autre page.</p>
+    <h3>Sources</h3>
+    <div class="refs">Nicolas Schöffer, <i>La Ville cybernétique</i> (Paris : Tchou, 1969 ; Naima, 2018), p. 130–194 ; planches © ADAGP, Paris.<br>Nina Stener Jørgensen, « The Power of the Tower: Nicolas Schöffer’s Tour Lumière Cybernétique for La Défense (1962–1973) », <i>Architectural Histories</i> 12, n° 1 (2024) : 1–19.<br>Carlotta Darò, « Nicolas Schöffer and the Cybernetic City », <i>AA Files</i> 69 (2014) : 3–11.<br><br>Données : comme sur la page de la tour (Open-Meteo, Ville de Paris, Santé publique France, franceinfo, Bluesky, Wikimedia).</div>
+  </div>
+
+  </section>
+</aside>
+<div id="pick" hidden><div class="pk-bar"><span id="pick-head"></span><button id="pick-close">×</button></div><div id="pick-body"></div></div>
+<div id="lightbox" hidden><img id="lb-img" alt=""><div id="lb-cap"></div></div>
+
+<div id="overlay"><div class="card">
+  <h2>La Ville cybernétique</h2>
+  <p lang="fr">Une simulation de la ville que Nicolas Schöffer décrit dans <i>La Ville cybernétique</i> (1969) : une ville de travail verticale, une ville résidentielle horizontale sur pylônes, des loisirs entre les deux, et une commande cybernétique centrale qui règle le temps, la lumière, le son, les climats et l’espace. Ses habitants suivent les règles du livre ; le plan et l’environnement sont imaginés, et ce sont les données de Paris, en direct, qui tiennent lieu de climat, de ciel et de rumeur.</p>
+  <p lang="en">A simulation of the city Nicolas Schöffer describes in <i>La Ville cybernétique</i> (1969): a vertical work city, a horizontal residential city on pylons, leisure between the two, and a central cybernetic command regulating time, light, sound, climates and space. Its inhabitants follow the book’s rules; the plan and the surroundings are imagined, and live Paris data stand in for their weather, sky and hum.</p>
+  <div class="opts"><label><span lang="fr">habitants</span><span lang="en">inhabitants</span> <select id="pop"><option value="1000">10 000</option><option value="2000" selected>20 000</option><option value="3000">30 000</option></select></label><label><input type="checkbox" id="start-sound"> <span lang="fr">son</span><span lang="en">sound</span></label><span style="flex:1"></span><span class="ovl-lang"><button data-ui="fr" class="btn">FR</button> <button data-ui="en" class="btn">EN</button></span></div>
+  <button id="start"><span lang="fr">Mettre en marche</span><span lang="en">Start</span></button>
+</div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="../js/i18n.js?v=1795104654"></script>
+<script src="../js/data.js?v=1795104654"></script>
+<script src="../js/sound.js?v=1795104654"></script>
+<script src="../js/ville.js?v=1795104654"></script>
+<script src="../js/ville_ui.js?v=1795104654"></script>
+</body>
+</html>
